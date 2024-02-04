@@ -6,32 +6,35 @@ import os
 import shutil
 from zipfile import ZipFile
 
-try:
-    import requests
-except Exception:
-    print("installing requests...")
-    python = sys.executable
-    subprocess.check_call(
-        f"{python} -m pip install requests", stdout=subprocess.DEVNULL
-    )
-    import requests
+if sys.platform == "win32":
+    try:
+        import requests
+    except Exception:
+        print("installing requests...")
+        python = sys.executable
+        subprocess.check_call(
+            f"{python} -m pip install requests",
+            stdout=subprocess.DEVNULL,
+        )
+        import requests
+
+PLATFORM = (
+    "windows" if sys.platform == "win32" else "linux" if sys.platform == "linux" else ""
+)
 
 
-def check_version_and_platform() -> tuple[bool, str]:
+def check_version_and_platform() -> bool:
     version = sys.version_info
-    if version.major != 3 and version.minor != 10:
-        return False, ""
-    if sys.platform == "linux":
-        return True, "linux"
-    if sys.platform == "win32":
-        return True, "windows"
-    return False, ""
+    return False if version.major != 3 and version.minor != 10 else PLATFORM != ""
 
 
 def check_git_install() -> None:
     try:
         subprocess.check_call(
-            "git --version", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            "git --version",
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            shell=PLATFORM == "linux",
         )
     except FileNotFoundError:
         print("ERROR: git is not installed, please install git")
@@ -39,9 +42,13 @@ def check_git_install() -> None:
     return True
 
 
+# windows only
 def set_execution_policy() -> None:
     try:
-        subprocess.check_call(str(Path("installables/change_execution_policy.bat")))
+        subprocess.check_call(
+            str(Path("installables/change_execution_policy.bat")),
+            shell=PLATFORM == "linux",
+        )
     except subprocess.SubprocessError:
         try:
             subprocess.check_call(
@@ -91,6 +98,7 @@ def setup_accelerate(platform: str) -> None:
     shutil.move("default_config.yaml", str(path.resolve()))
 
 
+# windows only
 def setup_cudnn():
     reply = None
     while reply not in ("y", "n"):
@@ -127,6 +135,7 @@ def setup_cudnn():
     os.remove("cudnn.zip")
 
 
+# windows only
 def ask_10_series(venv_pip):
     reply = None
     while reply not in ("y", "n"):
@@ -157,6 +166,7 @@ def ask_10_series(venv_pip):
     return True
 
 
+# windows only
 def setup_windows(venv_pip):
     torch_version = (
         "torch torchvision --index-url https://download.pytorch.org/whl/cu118"
@@ -174,15 +184,17 @@ def setup_windows(venv_pip):
     subprocess.check_call(f"{venv_pip} install -r ../requirements.txt")
 
 
+# linux only
 def setup_linux(venv_pip):
     subprocess.check_call(
-        f"{venv_pip} install torch torchvision --index-url https://download.pytorch.org/whl/cu118"
+        f"{venv_pip} install torch torchvision --index-url https://download.pytorch.org/whl/cu118",
+        shell=True,
     )
-    subprocess.check_call(f"{venv_pip} install -r requirements.txt")
-    subprocess.check_call(f"{venv_pip} install ../LyCORIS/.")
-    subprocess.check_call(f"{venv_pip} install ../custom_scheduler/.")
-    subprocess.check_call(f"{venv_pip} install bitsandbytes scipy")
-    subprocess.check_call(f"{venv_pip} install -r ../requirements.txt")
+    subprocess.check_call(f"{venv_pip} install -r requirements.txt", shell=True)
+    subprocess.check_call(f"{venv_pip} install ../LyCORIS/.", shell=True)
+    subprocess.check_call(f"{venv_pip} install ../custom_scheduler/.", shell=True)
+    subprocess.check_call(f"{venv_pip} install bitsandbytes scipy", shell=True)
+    subprocess.check_call(f"{venv_pip} install -r ../requirements.txt", shell=True)
 
 
 def setup_config():
@@ -194,14 +206,13 @@ def setup_config():
 
 
 def main():
-    version_good, platform = check_version_and_platform()
-    if not version_good or not check_git_install():
+    if not check_version_and_platform() or not check_git_install():
         quit()
 
     subprocess.check_call("git submodule init")
     subprocess.check_call("git submodule update")
 
-    if platform == "windows":
+    if PLATFORM == "windows":
         print("setting execution policy to unrestricted")
         if not set_execution_policy():
             quit()
@@ -209,21 +220,21 @@ def main():
     setup_config()
 
     os.chdir("sd_scripts")
-    if platform == "windows":
+    if PLATFORM == "windows":
         pip = Path("venv/Scripts/pip.exe")
     else:
         pip = Path("venv/bin/pip")
 
     print("creating venv and installing requirements")
-    subprocess.check_call(f"{sys.executable} -m venv venv")
+    subprocess.check_call(f"{sys.executable} -m venv venv", shell=PLATFORM == "linux")
 
-    if platform == "windows":
+    if PLATFORM == "windows":
         if not ask_10_series(pip):
             setup_windows(pip)
             setup_cudnn()
     else:
         setup_linux(pip)
-    setup_accelerate(platform)
+    setup_accelerate(PLATFORM)
 
     print(
         "Completed installing, you can run the server via the run.bat or run.sh files"

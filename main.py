@@ -14,8 +14,16 @@ from utils.tunnel_service import Tunnel
 
 training_thread = threading.Thread()
 
+if not Path("runtime_store").exists():
+    Path("runtime_store").mkdir()
+
 
 async def validate_inputs(request: Request) -> Response:
+    if app.state.TRAINING:
+        return Response(
+            json.dumps({"detail": "training already running"}),
+            status_code=status.HTTP_409_CONFLICT,
+        )
     body = await request.body()
     body = json.loads(body)
     passed_validation, sdxl, errors, args, dataset_args = validate(body)
