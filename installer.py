@@ -209,8 +209,8 @@ def main():
     if not check_version_and_platform() or not check_git_install():
         quit()
 
-    subprocess.check_call("git submodule init")
-    subprocess.check_call("git submodule update")
+    subprocess.check_call("git submodule init", shell=PLATFORM == "linux")
+    subprocess.check_call("git submodule update", shell=PLATFORM == "linux")
 
     if PLATFORM == "windows":
         print("setting execution policy to unrestricted")
