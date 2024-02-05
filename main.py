@@ -69,7 +69,8 @@ def train() -> None:
     app.state.ERROR = False
     try:
         subprocess.check_call(
-            f"{python} {Path(f'sd_scripts/{app.state.SD_TYPE}').resolve()} --config_file={Path('runtime_store/config.toml').resolve()} --dataset_config={Path('runtime_store/dataset.toml').resolve()}"
+            f"{python} {Path(f'sd_scripts/{app.state.SD_TYPE}').resolve()} --config_file={Path('runtime_store/config.toml').resolve()} --dataset_config={Path('runtime_store/dataset.toml').resolve()}",
+            shell=sys.platform == "linux",
         )
     except subprocess.SubprocessError:
         app.state.TRAINING = False
