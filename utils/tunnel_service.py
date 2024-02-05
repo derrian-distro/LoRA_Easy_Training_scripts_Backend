@@ -25,8 +25,13 @@ class Tunnel:
             response = requests.get(urls[0] if platform == "linux" else urls[1])
             with self.executable.open("wb") as f:
                 f.write(response.content)
+            if platform == "linux":
+                self.executable.chmod(711)
         self.process.start()
 
     def run_tunnel(self):
         print("running tunnel")
-        subprocess.check_call(f"{self.executable} tunnel --url http://127.0.0.1:8000")
+        subprocess.check_call(
+            f"{'./' if platform == 'linux' else ''}{self.executable} tunnel --url http://127.0.0.1:8000",
+            shell=platform == "linux",
+        )
