@@ -25,7 +25,7 @@ PLATFORM = (
 
 def check_version_and_platform() -> bool:
     version = sys.version_info
-    return False if version.major != 3 and version.minor != 10 else PLATFORM != ""
+    return False if version.major != 3 and version.minor < 10 else PLATFORM != ""
 
 
 def check_git_install() -> None:

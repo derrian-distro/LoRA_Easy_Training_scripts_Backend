@@ -34,7 +34,7 @@ async def validate_inputs(request: Request) -> Response:
         final_args = {"args": output_args, "dataset": output_dataset_args}
         return Response(json.dumps(final_args, indent=2))
     return Response(
-        json.dumps(json.dumps(errors)),
+        json.dumps(errors),
         status_code=status.HTTP_400_BAD_REQUEST,
     )
 

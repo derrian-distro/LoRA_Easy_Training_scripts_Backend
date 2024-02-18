@@ -2,6 +2,13 @@ from pathlib import Path
 
 
 def validate(args: dict) -> tuple[bool, bool, list[str], dict, dict]:
+    over_errors = []
+    if "args" not in args:
+        over_errors.append("args is not present")
+    if "dataset" not in args:
+        over_errors.append("dataset is not present")
+    if over_errors:
+        return False, False, over_errors, {}, {}
     args_pass, args_errors, args_data = validate_args(args["args"])
     dataset_pass, dataset_errors, dataset_data = validate_dataset_args(args["dataset"])
     over_pass = args_pass and dataset_pass
@@ -17,6 +24,7 @@ def validate(args: dict) -> tuple[bool, bool, list[str], dict, dict]:
 
 
 def validate_args(args: dict) -> tuple[bool, list[str], dict]:
+    # sourcery skip: low-code-quality
     passed_validation = True
     errors = []
     output_args = {}
@@ -63,11 +71,10 @@ def validate_args(args: dict) -> tuple[bool, list[str], dict]:
             if arg == "lr_scheduler_args":
                 vals = [f"{k}={v}" for k, v in val.items()]
                 val = vals
-            if arg == "keep_tokens_separator":
-                if len(args[arg]) < 1:
-                    passed_validation = False
-                    errors.append("Keep Tokens Separator is an empty string")
-                    continue
+            if arg == "keep_tokens_separator" and len(args[arg]) < 1:
+                passed_validation = False
+                errors.append("Keep Tokens Separator is an empty string")
+                continue
             if not val:
                 continue
             output_args[arg] = val
@@ -85,15 +92,17 @@ def validate_args(args: dict) -> tuple[bool, list[str], dict]:
         if file["required"] and file["name"] not in output_args:
             passed_validation = False
             errors.append(
-                f"File input path '{output_args[file['name']]}' does not exist"
+                f"{file['name']} input '{output_args[file['name']]}' does not exist"
             )
             continue
         if file["name"] in output_args and not Path(output_args[file["name"]]).exists():
             passed_validation = False
             errors.append(
-                f"File input path '{output_args[file['name']]}' does not exist"
+                f"{file['name']} input '{output_args[file['name']]}' does not exist"
             )
             continue
+        elif file["name"] in output_args:
+            output_args[file["name"]] = Path(output_args[file["name"]]).as_posix()
     if "network_module" not in output_args:
         output_args["network_module"] = "networks.lora"
     return passed_validation, errors, output_args
@@ -131,17 +140,15 @@ def validate_dataset_args(args: dict) -> tuple[bool, list[str], dict]:
 def validate_subset(args: dict) -> tuple[bool, list[str], dict]:
     passed_validation = True
     errors = []
-    output_args = {}
-
-    for key, value in args.items():
-        if not value:
-            continue
-        output_args[key] = value
+    output_args = {key: value for key, value in args.items() if value}
+    if "name" in output_args:
+        del output_args["name"]
     if "image_dir" not in output_args or not Path(output_args["image_dir"]).exists():
         passed_validation = False
         errors.append(
             f"Image directory path '{output_args['image_dir']}' does not exist"
         )
+        output_args["image_dir"] = Path(output_args["image_dir"]).as_posix()
     return passed_validation, errors, output_args
 
 
@@ -156,7 +163,7 @@ def validate_restarts(args: dict, dataset: dict) -> None:
         steps = calculate_steps(
             dataset["subsets"],
             args["max_train_epochs"],
-            dataset["general"]["batch_size"],
+            dataset["general"]["batch_size"] * args["gradient_accumulation_steps"],
         )
     steps = steps // args["lr_scheduler_num_cycles"]
     args["lr_scheduler_args"].append(f"first_cycle_steps={steps}")
@@ -171,7 +178,7 @@ def validate_warmup_ratio(args: dict, dataset: dict) -> None:
         steps = calculate_steps(
             dataset["subsets"],
             args["max_train_epochs"],
-            dataset["general"]["batch_size"],
+            dataset["general"]["batch_size"] * args["gradient_accumulation_steps"],
         )
     steps = round(steps * args["warmup_ratio"])
     if "lr_scheduler_type" in args:
@@ -211,7 +218,6 @@ def validate_existing_files(args: dict) -> None:
     file_name = Path(
         f"{args['output_dir']}/{args.get('output_name', 'last')}.safetensors"
     )
-    print(file_name)
     offset = 1
     while file_name.exists():
         file_name = Path(
@@ -234,7 +240,7 @@ def calculate_steps(subsets: list, epochs: int, batch_size: int) -> int:
     steps = 0
     for subset in subsets:
         image_count = 0
-        files = [x for x in Path(subset["image_dir"]).iterdir()]
+        files = list(Path(subset["image_dir"]).iterdir())
         for file in files:
             if file.suffix.lower() not in {
                 ".png",
