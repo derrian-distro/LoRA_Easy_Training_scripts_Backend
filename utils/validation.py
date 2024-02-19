@@ -13,10 +13,11 @@ def validate(args: dict) -> tuple[bool, bool, list[str], dict, dict]:
     dataset_pass, dataset_errors, dataset_data = validate_dataset_args(args["dataset"])
     over_pass = args_pass and dataset_pass
     over_errors = args_errors + dataset_errors
-    validate_restarts(args_data, dataset_data)
-    validate_warmup_ratio(args_data, dataset_data)
-    validate_save_tags(args_data, dataset_data)
-    validate_existing_files(args_data)
+    if not over_errors:
+        validate_restarts(args_data, dataset_data)
+        validate_warmup_ratio(args_data, dataset_data)
+        validate_save_tags(args_data, dataset_data)
+        validate_existing_files(args_data)
     sdxl = validate_sdxl(args_data)
     if not over_pass:
         return False, sdxl, over_errors, args_data, dataset_data
@@ -139,13 +140,14 @@ def validate_subset(args: dict) -> tuple[bool, list[str], dict]:
     passed_validation = True
     errors = []
     output_args = {key: value for key, value in args.items() if value}
+    name = "subset"
     if "name" in output_args:
+        name = output_args["name"]
         del output_args["name"]
     if "image_dir" not in output_args or not Path(output_args["image_dir"]).exists():
         passed_validation = False
-        errors.append(
-            f"Image directory path '{output_args['image_dir']}' does not exist"
-        )
+        errors.append(f"Image directory path for '{name}' does not exist")
+    else:
         output_args["image_dir"] = Path(output_args["image_dir"]).as_posix()
     return passed_validation, errors, output_args
 
