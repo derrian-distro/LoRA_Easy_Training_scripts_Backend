@@ -163,7 +163,7 @@ def validate_restarts(args: dict, dataset: dict) -> None:
         steps = calculate_steps(
             dataset["subsets"],
             args["max_train_epochs"],
-            dataset["general"]["batch_size"] * args["gradient_accumulation_steps"],
+            dataset["general"]["batch_size"] * args.get("gradient_accumulation_steps", 1),
         )
     steps = steps // args["lr_scheduler_num_cycles"]
     args["lr_scheduler_args"].append(f"first_cycle_steps={steps}")
@@ -178,7 +178,7 @@ def validate_warmup_ratio(args: dict, dataset: dict) -> None:
         steps = calculate_steps(
             dataset["subsets"],
             args["max_train_epochs"],
-            dataset["general"]["batch_size"] * args["gradient_accumulation_steps"],
+            dataset["general"]["batch_size"] * args.get("gradient_accumulation_steps", 1),
         )
     steps = round(steps * args["warmup_ratio"])
     if "lr_scheduler_type" in args:
