@@ -13,6 +13,10 @@ import subprocess
 import threading
 from utils.tunnel_service import Tunnel
 import uvicorn
+import os
+
+if len(sys.argv) > 1:
+    os.chdir(sys.argv[1])
 
 if not Path("runtime_store").exists():
     Path("runtime_store").mkdir()
