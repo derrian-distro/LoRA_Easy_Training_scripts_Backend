@@ -190,6 +190,10 @@ def setup_linux(venv_pip):
         f"{venv_pip} install torch torchvision --index-url https://download.pytorch.org/whl/cu118",
         shell=True,
     )
+    subprocess.check_call(
+        f"{venv_pip} install xformers --index-url https://download.pytorch.org/whl/cu118",
+        shell=True,
+    )
     subprocess.check_call(f"{venv_pip} install -r requirements.txt", shell=True)
     subprocess.check_call(f"{venv_pip} install ../LyCORIS/.", shell=True)
     subprocess.check_call(f"{venv_pip} install ../custom_scheduler/.", shell=True)
