@@ -1,3 +1,4 @@
+import contextlib
 import sys
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -11,8 +12,7 @@ from pathlib import Path
 import subprocess
 import threading
 from utils.tunnel_service import Tunnel
-
-training_thread = threading.Thread()
+import uvicorn
 
 if not Path("runtime_store").exists():
     Path("runtime_store").mkdir()
@@ -52,7 +52,7 @@ async def train_request(_: Request) -> Response:
             json.dumps({"detail": "No Previously Validated Args"}),
             status_code=status.HTTP_400_BAD_REQUEST,
         )
-    app.state.TRAINING_THREAD = threading.Thread(target=train)
+    app.state.TRAINING_THREAD = threading.Thread(target=train, daemon=True)
     app.state.TRAINING_THREAD.start()
     return Response(json.dumps({"detail": "training started successfully"}))
 
@@ -61,6 +61,14 @@ async def is_training(_: Request) -> Response:
     return Response(
         json.dumps({"training": app.state.TRAINING, "errored": app.state.ERROR})
     )
+
+
+async def stop_server(_: Request) -> Response:
+    global server
+    if app.state.TRAINING:
+        return Response(json.dumps({"detail": "training still running"}))
+    server.should_exit = True
+    server.force_exit = True
 
 
 def train() -> None:
@@ -80,13 +88,19 @@ def train() -> None:
     app.state.ERROR = False
 
 
+def startup():
+    with contextlib.suppress(AttributeError):
+        app.state.TUNNEL.process.start()
+
+
 routes = [
     Route("/validate", validate_inputs, methods=["POST"]),
     Route("/train", train_request, methods=["GET"]),
     Route("/is_training", is_training, methods=["GET"]),
+    Route("/stop_server", stop_server, methods=["GET"]),
 ]
 
-app = Starlette(debug=True, routes=routes)
+app = Starlette(debug=True, routes=routes, on_startup=[startup])
 app.state.SD_TYPE = "train_network.py"
 app.state.TRAINING_THREAD = None
 app.state.TRAINING = False
@@ -100,3 +114,9 @@ if not app.state.CONFIG.exists():
 config_data = json.loads(app.state.CONFIG.read_text())
 if "remote" in config_data and config_data["remote"]:
     app.state.TUNNEL = Tunnel()
+
+uvi_config = uvicorn.Config(app, loop="asyncio")
+server = uvicorn.Server(config=uvi_config)
+
+if __name__ == "__main__":
+    server.run()

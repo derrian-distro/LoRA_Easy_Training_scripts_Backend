@@ -15,6 +15,7 @@ class Tunnel:
             else "cloudflared-windows-amd64.exe"
         )
         self.process = Process(target=self.run_tunnel)
+        self.process.daemon = True
         if not self.folder.exists():
             self.folder.mkdir()
         if not self.executable.exists():
@@ -27,7 +28,6 @@ class Tunnel:
                 f.write(response.content)
             if platform == "linux":
                 self.executable.chmod(711)
-        self.process.start()
 
     def run_tunnel(self):
         print("running tunnel")
