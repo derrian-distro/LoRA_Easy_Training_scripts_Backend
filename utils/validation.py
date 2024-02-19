@@ -91,9 +91,7 @@ def validate_args(args: dict) -> tuple[bool, list[str], dict]:
     for file in file_inputs:
         if file["required"] and file["name"] not in output_args:
             passed_validation = False
-            errors.append(
-                f"{file['name']} input '{output_args[file['name']]}' does not exist"
-            )
+            errors.append(f"{file['name']} is not found")
             continue
         if file["name"] in output_args and not Path(output_args[file["name"]]).exists():
             passed_validation = False
