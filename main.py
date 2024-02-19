@@ -119,7 +119,7 @@ config_data = json.loads(app.state.CONFIG.read_text())
 if "remote" in config_data and config_data["remote"]:
     app.state.TUNNEL = Tunnel()
 
-uvi_config = uvicorn.Config(app, loop="asyncio")
+uvi_config = uvicorn.Config(app, loop="asyncio", log_level="critical")
 server = uvicorn.Server(config=uvi_config)
 
 if __name__ == "__main__":
