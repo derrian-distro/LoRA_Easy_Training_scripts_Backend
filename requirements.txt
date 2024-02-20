@@ -1,5 +1,7 @@
 starlette
 uvicorn[standard]
 requests
+dadaptation
 lion-pytorch
+prodigyopt
 wandb
