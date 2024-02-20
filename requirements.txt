@@ -1,3 +1,5 @@
 starlette
 uvicorn[standard]
 requests
+lion-pytorch
+wandb
