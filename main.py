@@ -75,6 +75,22 @@ async def stop_server(_: Request) -> Response:
     server.force_exit = True
 
 
+async def check_path(request: Request) -> Response:
+    body = await request.body()
+    body = json.loads(body)
+    file_path = Path(body["path"])
+    valid = False
+    if body["type"] == "folder" and file_path.is_dir():
+        valid = True
+    if (
+        body["type"] == "file"
+        and file_path.is_file()
+        and file_path.suffix in body["extensions"]
+    ):
+        valid = True
+    return Response(json.dumps({"valid": valid}))
+
+
 def train() -> None:
     python = sys.executable
     app.state.TRAINING = True
@@ -102,6 +118,7 @@ routes = [
     Route("/train", train_request, methods=["GET"]),
     Route("/is_training", is_training, methods=["GET"]),
     Route("/stop_server", stop_server, methods=["GET"]),
+    Route("/check_path", check_path, methods=["POST"]),
 ]
 
 app = Starlette(debug=True, routes=routes, on_startup=[startup])
@@ -119,7 +136,7 @@ config_data = json.loads(app.state.CONFIG.read_text())
 if "remote" in config_data and config_data["remote"]:
     app.state.TUNNEL = Tunnel()
 
-uvi_config = uvicorn.Config(app, loop="asyncio", log_level="critical")
+uvi_config = uvicorn.Config(app, host="0.0.0.0", loop="asyncio", log_level="critical")
 server = uvicorn.Server(config=uvi_config)
 
 if __name__ == "__main__":
