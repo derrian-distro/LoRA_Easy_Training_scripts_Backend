@@ -45,10 +45,7 @@ def check_git_install() -> None:
 # windows only
 def set_execution_policy() -> None:
     try:
-        subprocess.check_call(
-            str(Path("installables/change_execution_policy.bat")),
-            shell=PLATFORM == "linux",
-        )
+        subprocess.check_call(str(Path("installables/change_execution_policy.bat")))
     except subprocess.SubprocessError:
         try:
             subprocess.check_call(
@@ -203,7 +200,6 @@ def setup_linux(venv_pip):
 
 # colab only
 def setup_colab(venv_pip):
-    setup_config(True)
     setup_linux(venv_pip)
     setup_accelerate("linux")
 
@@ -258,6 +254,13 @@ def main():
     subprocess.check_call("git submodule init", shell=PLATFORM == "linux")
     subprocess.check_call("git submodule update", shell=PLATFORM == "linux")
 
+    if PLATFORM == "windows":
+        print("setting execution policy to unrestricted")
+        if not set_execution_policy():
+            quit()
+
+    setup_config(len(sys.argv) > 1 and sys.argv[1] == "colab")
+
     os.chdir("sd_scripts")
     if PLATFORM == "windows":
         pip = Path("venv/Scripts/pip.exe")
@@ -271,13 +274,6 @@ def main():
         setup_colab()
         print("completed installing")
         quit()
-
-    if PLATFORM == "windows":
-        print("setting execution policy to unrestricted")
-        if not set_execution_policy():
-            quit()
-
-    setup_config()
 
     if PLATFORM == "windows":
         if not ask_10_series(pip):
