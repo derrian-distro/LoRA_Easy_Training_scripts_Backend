@@ -12,6 +12,7 @@ import subprocess
 from utils.tunnel_service import CloudflaredTunnel, create_tunnel
 import uvicorn
 import os
+from threading import Thread
 
 if len(sys.argv) > 1:
     os.chdir(sys.argv[1])
@@ -22,7 +23,7 @@ if not Path("runtime_store").exists():
 
 async def stop_server(_: Request) -> Response:
     global server
-    if app.state.TRAINING:
+    if app.state.TRAINING_THREAD and app.state.TRAINING_THREAD.poll() is None:
         return Response(json.dumps({"detail": "training still running"}))
     server.should_exit = True
     server.force_exit = True
@@ -95,7 +96,6 @@ async def validate_inputs(request: Request) -> Response:
     )
 
 
-# TODO: update to fit new training check
 async def is_training(_: Request) -> Response:
     exit_id = app.state.TRAINING_THREAD.poll() if app.state.TRAINING_THREAD else 0
     return Response(
@@ -108,13 +108,15 @@ async def is_training(_: Request) -> Response:
     )
 
 
-# TODO: update to use Popen to allow for early kill
 async def start_training(_: Request) -> Response:
     if app.state.TRAINING_THREAD and app.state.TRAINING_THREAD.poll() is None:
         return Response(
             json.dumps({"detail": "Training Already Running"}),
             status_code=status.HTTP_409_CONFLICT,
         )
+    server_config_dict = (
+        json.loads(app.state.CONFIG.read_text()) if app.state.CONFIG else {}
+    )
     python = sys.executable
     config = Path("runtime_store/config.toml")
     dataset = Path("runtime_store/dataset.toml")
@@ -132,10 +134,21 @@ async def start_training(_: Request) -> Response:
             f"--dataset_config={dataset.resolve()}",
         ]
     )
+    if (
+        "kill_tunnel_on_train_start" in server_config_dict
+        and server_config_dict["kill_tunnel_on_train_start"]
+    ):
+        app.state.TUNNEL.kill_service()
+        app.state.TUNNEL = None
+    if (
+        "kill_server_on_train_end" in server_config_dict
+        and server_config_dict["kill_server_on_train_end"]
+    ):
+        app.state.MONITOR_THREAD = Thread(target=monitor_training_thread, daemon=True)
+        app.state.MONITOR_THREAD.start()
     return Response(json.dumps({"detail": "Training Started", "training": True}))
 
 
-# TODO: THIS WHOLE FUNCTION
 async def stop_training(request: Request) -> Response:
     force = bool(request.query_params.get("force", False))
     if not app.state.TRAINING_THREAD and app.state.TRAINING_THREAD.poll() is not None:
@@ -150,29 +163,15 @@ async def stop_training(request: Request) -> Response:
     else:
         app.state.TRAINING_THREAD.terminate()
     return Response(json.dumps({"detail": "Training Thread Requested to Die"}))
-    # if not app.state.TRAINING:
-    #     return Response(
-    #         json.dumps({"detail": "Not Currently Training"}),
-    #         status_code=status.HTTP_400_BAD_REQUEST,
-    #     )
 
 
-# async def train_request(_: Request) -> Response:
-#     if app.state.TRAINING_THREAD and app.state.TRAINING_THREAD.is_alive():
-#         return Response(
-#             json.dumps({"detail": "training already running"}),
-#             status_code=status.HTTP_409_CONFLICT,
-#         )
-#     args = Path("runtime_store/config.toml")
-#     dataset = Path("runtime_store/dataset.toml")
-#     if not args.exists() or not dataset.exists():
-#         return Response(
-#             json.dumps({"detail": "No Previously Validated Args"}),
-#             status_code=status.HTTP_400_BAD_REQUEST,
-#         )
-#     app.state.TRAINING_THREAD = threading.Thread(target=train, daemon=True)
-#     app.state.TRAINING_THREAD.start()
-#     return Response(json.dumps({"detail": "training started successfully"}))
+def monitor_training_thread():
+    if not app.state.TRAINING_THREAD:
+        return
+    global server
+    app.state.TRAINING_THREAD.wait()
+    server.should_exit = True
+    server.force_exit = True
 
 
 routes = [
@@ -190,6 +189,7 @@ app = Starlette(debug=True, routes=routes)
 app.state.SD_TYPE = "train_network.py"
 app.state.TRAINING_THREAD = None
 app.state.CONFIG = Path("config.json")
+app.state.MONITOR_THREAD = None
 
 if not app.state.CONFIG.exists():
     with app.state.CONFIG.open("w", encoding="utf-8") as f:
@@ -204,7 +204,7 @@ if config_data.get("remote", False):
     else:
         app.state.TUNNEL.run_tunnel()
 
-uvi_config = uvicorn.Config(app, host="0.0.0.0", loop="asyncio")
+uvi_config = uvicorn.Config(app, host="0.0.0.0", loop="asyncio", log_level="critical")
 server = uvicorn.Server(config=uvi_config)
 
 if __name__ == "__main__":

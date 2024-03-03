@@ -154,3 +154,4 @@ cython_debug/
 config.json
 runtime_store
 *.rest
+config.yml

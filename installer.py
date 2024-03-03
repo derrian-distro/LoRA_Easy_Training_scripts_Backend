@@ -201,6 +201,13 @@ def setup_linux(venv_pip):
     subprocess.check_call(f"{venv_pip} install -r ../requirements.txt", shell=True)
 
 
+# colab only
+def setup_colab(venv_pip):
+    setup_config(True)
+    setup_linux(venv_pip)
+    setup_accelerate("linux")
+
+
 def ask_yes_no(question: str) -> bool:
     reply = None
     while reply not in ("y", "n"):
@@ -208,7 +215,17 @@ def ask_yes_no(question: str) -> bool:
     return reply == "y"
 
 
-def setup_config():
+def setup_config(colab: bool = False) -> None:
+    if colab:
+        config = {
+            "remote": True,
+            "remote_mode": "cloudflared",
+            "kill_tunnel_on_train_start": True,
+            "kill_server_on_train_end": True,
+        }
+        with open("config.json", "w") as f:
+            f.write(json.dumps(config, indent=2))
+        return
     is_remote = ask_yes_no("are you using this remotely?")
     remote_mode = "none"
     if is_remote:
@@ -241,13 +258,6 @@ def main():
     subprocess.check_call("git submodule init", shell=PLATFORM == "linux")
     subprocess.check_call("git submodule update", shell=PLATFORM == "linux")
 
-    if PLATFORM == "windows":
-        print("setting execution policy to unrestricted")
-        if not set_execution_policy():
-            quit()
-
-    setup_config()
-
     os.chdir("sd_scripts")
     if PLATFORM == "windows":
         pip = Path("venv/Scripts/pip.exe")
@@ -256,6 +266,18 @@ def main():
 
     print("creating venv and installing requirements")
     subprocess.check_call(f"{sys.executable} -m venv venv", shell=PLATFORM == "linux")
+
+    if len(sys.argv) > 1 and sys.argv[1] == "colab":
+        setup_colab()
+        print("completed installing")
+        quit()
+
+    if PLATFORM == "windows":
+        print("setting execution policy to unrestricted")
+        if not set_execution_policy():
+            quit()
+
+    setup_config()
 
     if PLATFORM == "windows":
         if not ask_10_series(pip):
