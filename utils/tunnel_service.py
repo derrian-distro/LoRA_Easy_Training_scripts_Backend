@@ -1,37 +1,58 @@
-from sys import platform
+import json
 from pathlib import Path
-from multiprocessing import Process
-import subprocess
-
-import requests
+from pyngrok import ngrok
+from utils.cloudflare_tunnel import TryCloudFlareConfig, Urls
 
 
-class Tunnel:
-    def __init__(self, download_folder: Path = Path("runtime_store")) -> None:
-        self.folder = download_folder
-        self.executable = self.folder.joinpath(
-            "cloudflared-linux-amd64"
-            if platform == "linux"
-            else "cloudflared-windows-amd64.exe"
-        )
-        self.process = Process(target=self.run_tunnel)
-        self.process.daemon = True
-        if not self.folder.exists():
-            self.folder.mkdir()
-        if not self.executable.exists():
-            urls = [
-                "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64",
-                "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe",
-            ]
-            response = requests.get(urls[0] if platform == "linux" else urls[1])
-            with self.executable.open("wb") as f:
-                f.write(response.content)
-            if platform == "linux":
-                self.executable.chmod(711)
+class CloudflaredTunnel:
+    def __init__(self) -> None:
+        self.tunnel = TryCloudFlareConfig()
+        self.running_tunnel: Urls = None
 
-    def run_tunnel(self):
-        print("running tunnel")
-        subprocess.check_call(
-            f"{'./' if platform == 'linux' else ''}{self.executable} tunnel --url http://127.0.0.1:8000",
-            shell=platform == "linux",
-        )
+    def run_tunnel(self, port: int = 8000, config: Path | None = None) -> None:
+        if config and config.is_file() and config.suffix == ".yml":
+            self.running_tunnel = self.tunnel(config=config)
+        else:
+            self.running_tunnel = self.tunnel(port=port)
+
+    def kill_service(self) -> bool:
+        if self.running_tunnel:
+            self.tunnel.terminate(self.running_tunnel.port)
+            self.running_tunnel = None
+        print("cloudflared process killed")
+        return True
+
+
+class NgrokTunnel:
+    def __init__(self) -> None:
+        config = Path("config.json")
+        config_dict = json.loads(config.read_text()) if config.exists() else {}
+        self.token = config_dict.get("ngrok_token", "")
+        ngrok.set_auth_token(self.token)
+        self.tunnel: ngrok.NgrokTunnel = None
+
+    def run_tunnel(self) -> None:
+        if self.tunnel:
+            print(f"ngrok tunnel: {self.tunnel.public_url}")
+            return
+        try:
+            self.tunnel = ngrok.connect("8000")
+            print(f"ngrok connected: {self.tunnel.public_url}")
+        except Exception:
+            print("ngrok ran into an issue, stopping ngrok process...")
+            ngrok.kill()
+
+    def kill_service(self) -> bool:
+        if self.tunnel:
+            ngrok.disconnect(self.tunnel.public_url)
+        ngrok.kill()
+        print("ngrok service killed")
+        return True
+
+
+def create_tunnel(config: dict) -> NgrokTunnel | CloudflaredTunnel:
+    return (
+        NgrokTunnel()
+        if config.get("remote_mode", "cloudflared") == "ngrok"
+        else CloudflaredTunnel()
+    )

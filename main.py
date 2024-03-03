@@ -1,4 +1,3 @@
-import contextlib
 import sys
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -10,8 +9,7 @@ from utils.validation import validate
 from utils.process import process_args, process_dataset_args
 from pathlib import Path
 import subprocess
-import threading
-from utils.tunnel_service import Tunnel
+from utils.tunnel_service import CloudflaredTunnel, create_tunnel
 import uvicorn
 import os
 
@@ -22,8 +20,62 @@ if not Path("runtime_store").exists():
     Path("runtime_store").mkdir()
 
 
-async def validate_inputs(request: Request) -> Response:
+async def stop_server(_: Request) -> Response:
+    global server
     if app.state.TRAINING:
+        return Response(json.dumps({"detail": "training still running"}))
+    server.should_exit = True
+    server.force_exit = True
+
+
+async def start_tunnel_service(request: Request) -> Response:
+    config_data = json.loads(app.state.CONFIG.read_text())
+    if app.state.TUNNEL:
+        return Response(json.dumps({"service_started": False}), status_code=409)
+    app.state.TUNNEL = create_tunnel(config_data)
+    if isinstance(app.state.TUNNEL, CloudflaredTunnel):
+        config_path = request.query_params.get(
+            "config_path", config_data.get("cloudflared_config_path", None)
+        )
+        if config_path:
+            config_path = Path(config_path)
+        app.state.TUNNEL.run_tunnel(config=Path(config_path) if config_path else None)
+    else:
+        app.state.TUNNEL.run_tunnel()
+    return Response(json.dumps({"service_started": bool(app.state.TUNNEL)}))
+
+
+async def kill_tunnel_service(_: Request) -> Response:
+    if not app.state.TUNNEL:
+        return Response(
+            json.dumps({"killed": False, "reason": "No Tunnel Service Running"}),
+            status_code=400,
+        )
+    app.state.TUNNEL.kill_service()
+    app.state.TUNNEL = None
+    return Response(
+        json.dumps({"killed": True, "reason": "Tunnel Service Successfully Killed"})
+    )
+
+
+async def check_path(request: Request) -> Response:
+    body = await request.body()
+    body = json.loads(body)
+    file_path = Path(body["path"])
+    valid = False
+    if body["type"] == "folder" and file_path.is_dir():
+        valid = True
+    if (
+        body["type"] == "file"
+        and file_path.is_file()
+        and file_path.suffix in body["extensions"]
+    ):
+        valid = True
+    return Response(json.dumps({"valid": valid}))
+
+
+async def validate_inputs(request: Request) -> Response:
+    if app.state.TRAINING_THREAD and app.state.TRAINING_THREAD.poll() is None:
         return Response(
             json.dumps({"detail": "training already running"}),
             status_code=status.HTTP_409_CONFLICT,
@@ -43,89 +95,100 @@ async def validate_inputs(request: Request) -> Response:
     )
 
 
-async def train_request(_: Request) -> Response:
-    if app.state.TRAINING_THREAD and app.state.TRAINING_THREAD.is_alive():
+# TODO: update to fit new training check
+async def is_training(_: Request) -> Response:
+    exit_id = app.state.TRAINING_THREAD.poll() if app.state.TRAINING_THREAD else 0
+    return Response(
+        json.dumps(
+            {
+                "training": exit_id is None,
+                "errored": exit_id is not None and exit_id != 0,
+            }
+        )
+    )
+
+
+# TODO: update to use Popen to allow for early kill
+async def start_training(_: Request) -> Response:
+    if app.state.TRAINING_THREAD and app.state.TRAINING_THREAD.poll() is None:
         return Response(
-            json.dumps({"detail": "training already running"}),
+            json.dumps({"detail": "Training Already Running"}),
             status_code=status.HTTP_409_CONFLICT,
         )
-    args = Path("runtime_store/config.toml")
+    python = sys.executable
+    config = Path("runtime_store/config.toml")
     dataset = Path("runtime_store/dataset.toml")
-    if not args.exists() or not dataset.exists():
+    if not config.is_file() or not dataset.is_file():
         return Response(
             json.dumps({"detail": "No Previously Validated Args"}),
             status_code=status.HTTP_400_BAD_REQUEST,
         )
-    app.state.TRAINING_THREAD = threading.Thread(target=train, daemon=True)
-    app.state.TRAINING_THREAD.start()
-    return Response(json.dumps({"detail": "training started successfully"}))
-
-
-async def is_training(_: Request) -> Response:
-    return Response(
-        json.dumps({"training": app.state.TRAINING, "errored": app.state.ERROR})
+    print(app.state.SD_TYPE)
+    app.state.TRAINING_THREAD = subprocess.Popen(
+        [
+            f"{python}",
+            f"{Path(f'sd_scripts/{app.state.SD_TYPE}').resolve()}",
+            f"--config_file={config.resolve()}",
+            f"--dataset_config={dataset.resolve()}",
+        ]
     )
+    return Response(json.dumps({"detail": "Training Started", "training": True}))
 
 
-async def stop_server(_: Request) -> Response:
-    global server
-    if app.state.TRAINING:
-        return Response(json.dumps({"detail": "training still running"}))
-    server.should_exit = True
-    server.force_exit = True
-
-
-async def check_path(request: Request) -> Response:
-    body = await request.body()
-    body = json.loads(body)
-    file_path = Path(body["path"])
-    valid = False
-    if body["type"] == "folder" and file_path.is_dir():
-        valid = True
-    if (
-        body["type"] == "file"
-        and file_path.is_file()
-        and file_path.suffix in body["extensions"]
-    ):
-        valid = True
-    return Response(json.dumps({"valid": valid}))
-
-
-def train() -> None:
-    python = sys.executable
-    app.state.TRAINING = True
-    app.state.ERROR = False
-    try:
-        subprocess.check_call(
-            f"{python} {Path(f'sd_scripts/{app.state.SD_TYPE}').resolve()} --config_file={Path('runtime_store/config.toml').resolve()} --dataset_config={Path('runtime_store/dataset.toml').resolve()}",
-            shell=sys.platform == "linux",
+# TODO: THIS WHOLE FUNCTION
+async def stop_training(request: Request) -> Response:
+    force = bool(request.query_params.get("force", False))
+    if not app.state.TRAINING_THREAD and app.state.TRAINING_THREAD.poll() is not None:
+        return Response(
+            json.dumps({"detail": "Not Currently Training"}),
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
-    except subprocess.SubprocessError:
-        app.state.TRAINING = False
-        app.state.ERROR = True
-        return
-    app.state.TRAINING = False
-    app.state.ERROR = False
+    if force:
+        app.state.TRAINING_THREAD.stderr = None
+        app.state.TRAINING_THREAD.kill()
+        return Response(json.dumps({"detail": "Training Thread Killed"}))
+    else:
+        app.state.TRAINING_THREAD.terminate()
+    return Response(json.dumps({"detail": "Training Thread Requested to Die"}))
+    # if not app.state.TRAINING:
+    #     return Response(
+    #         json.dumps({"detail": "Not Currently Training"}),
+    #         status_code=status.HTTP_400_BAD_REQUEST,
+    #     )
 
 
-def startup():
-    with contextlib.suppress(AttributeError):
-        app.state.TUNNEL.process.start()
+# async def train_request(_: Request) -> Response:
+#     if app.state.TRAINING_THREAD and app.state.TRAINING_THREAD.is_alive():
+#         return Response(
+#             json.dumps({"detail": "training already running"}),
+#             status_code=status.HTTP_409_CONFLICT,
+#         )
+#     args = Path("runtime_store/config.toml")
+#     dataset = Path("runtime_store/dataset.toml")
+#     if not args.exists() or not dataset.exists():
+#         return Response(
+#             json.dumps({"detail": "No Previously Validated Args"}),
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#         )
+#     app.state.TRAINING_THREAD = threading.Thread(target=train, daemon=True)
+#     app.state.TRAINING_THREAD.start()
+#     return Response(json.dumps({"detail": "training started successfully"}))
 
 
 routes = [
-    Route("/validate", validate_inputs, methods=["POST"]),
-    Route("/train", train_request, methods=["GET"]),
-    Route("/is_training", is_training, methods=["GET"]),
     Route("/stop_server", stop_server, methods=["GET"]),
+    Route("/start_tunnel_service", start_tunnel_service, methods=["GET"]),
+    Route("/kill_tunnel_service", kill_tunnel_service, methods=["GET"]),
     Route("/check_path", check_path, methods=["POST"]),
+    Route("/validate", validate_inputs, methods=["POST"]),
+    Route("/is_training", is_training, methods=["GET"]),
+    Route("/train", start_training, methods=["GET"]),
+    Route("/stop_training", stop_training, methods=["GET"]),
 ]
 
-app = Starlette(debug=True, routes=routes, on_startup=[startup])
+app = Starlette(debug=True, routes=routes)
 app.state.SD_TYPE = "train_network.py"
 app.state.TRAINING_THREAD = None
-app.state.TRAINING = False
-app.state.ERROR = False
 app.state.CONFIG = Path("config.json")
 
 if not app.state.CONFIG.exists():
@@ -133,10 +196,15 @@ if not app.state.CONFIG.exists():
         f.write(json.dumps({"remote": False}, indent=2))
 
 config_data = json.loads(app.state.CONFIG.read_text())
-if "remote" in config_data and config_data["remote"]:
-    app.state.TUNNEL = Tunnel()
+if config_data.get("remote", False):
+    app.state.TUNNEL = create_tunnel(config_data)
+    if isinstance(app.state.TUNNEL, CloudflaredTunnel):
+        config_path = config_data.get("cloudflared_config_path", None)
+        app.state.TUNNEL.run_tunnel(config=Path(config_path) if config_path else None)
+    else:
+        app.state.TUNNEL.run_tunnel()
 
-uvi_config = uvicorn.Config(app, host="0.0.0.0", loop="asyncio", log_level="critical")
+uvi_config = uvicorn.Config(app, host="0.0.0.0", loop="asyncio")
 server = uvicorn.Server(config=uvi_config)
 
 if __name__ == "__main__":
