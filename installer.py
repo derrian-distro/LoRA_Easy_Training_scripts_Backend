@@ -271,7 +271,7 @@ def main():
     subprocess.check_call(f"{sys.executable} -m venv venv", shell=PLATFORM == "linux")
 
     if len(sys.argv) > 1 and sys.argv[1] == "colab":
-        setup_colab()
+        setup_colab(pip)
         print("completed installing")
         quit()
 
