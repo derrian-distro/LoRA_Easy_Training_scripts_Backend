@@ -83,12 +83,12 @@ async def validate_inputs(request: Request) -> Response:
         )
     body = await request.body()
     body = json.loads(body)
-    passed_validation, sdxl, errors, args, dataset_args = validate(body)
+    passed_validation, sdxl, errors, args, dataset_args, tags = validate(body)
     if passed_validation:
         app.state.SD_TYPE = "sdxl_train_network.py" if sdxl else "train_network.py"
         output_args, _ = process_args(args)
         output_dataset_args, _ = process_dataset_args(dataset_args)
-        final_args = {"args": output_args, "dataset": output_dataset_args}
+        final_args = {"args": output_args, "dataset": output_dataset_args, "tags": tags}
         return Response(json.dumps(final_args, indent=2))
     return Response(
         json.dumps(errors),
@@ -203,7 +203,6 @@ if config_data.get("remote", False):
         app.state.TUNNEL.run_tunnel(config=Path(config_path) if config_path else None)
     else:
         app.state.TUNNEL.run_tunnel()
-
 uvi_config = uvicorn.Config(app, host="0.0.0.0", loop="asyncio", log_level="critical")
 server = uvicorn.Server(config=uvi_config)
 

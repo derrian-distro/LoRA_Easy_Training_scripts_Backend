@@ -7,3 +7,4 @@ prodigyopt
 wandb
 pyngrok
 pycloudflared
+pytorch-optimizer
