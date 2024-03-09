@@ -17,6 +17,7 @@ def validate(args: dict) -> tuple[bool, bool, list[str], dict, dict]:
     if not over_errors:
         validate_restarts(args_data, dataset_data)
         validate_warmup_ratio(args_data, dataset_data)
+        validate_rex(args_data, dataset_data)
         tag_data = validate_save_tags(dataset_data)
         validate_existing_files(args_data)
     sdxl = validate_sdxl(args_data)
@@ -169,6 +170,7 @@ def validate_restarts(args: dict, dataset: dict) -> None:
         )
     steps = steps // args["lr_scheduler_num_cycles"]
     args["lr_scheduler_args"].append(f"first_cycle_steps={steps}")
+    del args["lr_scheduler_num_cycles"]
 
 
 def validate_warmup_ratio(args: dict, dataset: dict) -> None:
@@ -188,10 +190,26 @@ def validate_warmup_ratio(args: dict, dataset: dict) -> None:
         args["lr_scheduler_args"].append(
             f"warmup_steps={steps // args.get('lr_scheduler_num_cycles', 1)}"
         )
-        del args["lr_scheduler_num_cycles"]
     else:
         args["lr_warmup_steps"] = steps
     del args["warmup_ratio"]
+
+
+def validate_rex(args: dict, dataset: dict) -> None:
+    if "lr_scheduler_type" not in args:
+        return
+    if args["lr_scheduler_type"].split(".")[-1] != "Rex":
+        return
+    if "max_train_steps" in args:
+        steps = args["max_train_steps"]
+    else:
+        steps = calculate_steps(
+            dataset["subsets"],
+            args["max_train_epochs"],
+            dataset["general"]["batch_size"]
+            * args.get("gradient_accumulation_steps", 1),
+        )
+    args["lr_scheduler_args"].append(f"total_steps={steps}")
 
 
 def validate_existing_files(args: dict) -> None:
@@ -229,19 +247,6 @@ def validate_save_tags(dataset: dict) -> dict:
                 continue
             get_tags_from_file(subset_dir.joinpath(file.name), tags)
     return dict(sorted(tags.items(), key=lambda item: item[1], reverse=True))
-    # file_path = Path(args.get("tag_file_location", args["output_dir"]))
-    # if not file_path.is_dir():
-    #     pass
-    # return output_list
-    # with file_path.joinpath(f"{args.get('output_name', 'output')}_tags.txt").open(
-    #     "w", encoding="utf-8"
-    # ) as f:
-    #     f.write("Below is a list of keywords used during the training of this model:\n")
-    #     for k, v in output_list.items():
-    #         f.write(f"[{v}] {k}\n")
-    # del args["tag_occurrence"]
-    # if "tag_file_location" in args:
-    #     del args["tag_file_location"]
 
 
 def get_tags_from_file(file: str, tags: dict) -> None:

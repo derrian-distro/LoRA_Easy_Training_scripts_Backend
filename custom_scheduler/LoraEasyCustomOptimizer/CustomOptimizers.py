@@ -42,6 +42,8 @@ class CosineAnnealingWarmupRestarts(_LRScheduler):
         super().__init__(optimizer, last_epoch)
 
         self.init_lr()
+        if self.warmup_steps > 0:
+            self._last_lr = self.base_lrs
 
     def init_lr(self):
         self.max_lrs = []
@@ -123,5 +125,61 @@ class CosineAnnealingWarmupRestarts(_LRScheduler):
         self.last_epoch = math.floor(epoch)
 
         for param_group, lr in zip(self.optimizer.param_groups, self.get_lr()):
+            param_group["lr"] = lr
+        self._last_lr = [group["lr"] for group in self.optimizer.param_groups]
+
+
+class Rex(_LRScheduler):
+    def __init__(
+        self, optimizer, total_steps: int, min_lr: float = 0.0, warmup_steps: int = 0
+    ) -> None:
+        self.total_steps = total_steps
+        self.max_lrs: list[float] = []
+        self.base_lrs: list[float] = []
+        self.min_lr = min_lr
+        self.step_t = 0
+        self._last_lr = None
+        self.warmup_steps = warmup_steps
+        self.d = 0.9
+
+        super().__init__(optimizer)
+        self.init_lr()
+        if self.warmup_steps > 0:
+            self._last_lr = self.base_lrs
+
+    def init_lr(self):
+        self.base_lrs = []
+        for param_group in self.optimizer.param_groups:
+            self.max_lrs.append(param_group["initial_lr"])
+            min_lr = self.min_lr if param_group["initial_lr"] > self.min_lr else 0.0
+            param_group["lr"] = min_lr
+            self.base_lrs.append(min_lr)
+
+    # epoch arg gets ignored as the scheduler doesn't account for them in it's calculation
+    def get_lr(self, _: Optional[int] = None) -> list[float]:
+        if self.step_t >= self.total_steps:
+            return self.base_lrs
+
+        if self.step_t < self.warmup_steps:
+            return [
+                (max_lr - base_lr) * self.step_t / self.warmup_steps + base_lr
+                for max_lr, base_lr in zip(self.max_lrs, self.base_lrs)
+            ]
+
+        progress = (self.step_t - self.warmup_steps) / (
+            self.total_steps - self.warmup_steps
+        )
+        div = (1 - self.d) + (self.d * (1 - progress))
+
+        return [
+            self.min_lr + (lr - self.min_lr) * ((1 - progress) / div)
+            for lr in self.max_lrs
+        ]
+
+    def step(self) -> None:
+        new_lrs = self.get_lr()
+        self.step_t += 1
+
+        for param_group, lr in zip(self.optimizer.param_groups, new_lrs):
             param_group["lr"] = lr
         self._last_lr = [group["lr"] for group in self.optimizer.param_groups]
