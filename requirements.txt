@@ -8,3 +8,5 @@ wandb
 pyngrok
 pycloudflared
 pytorch-optimizer
+bitsandbytes
+scipy
