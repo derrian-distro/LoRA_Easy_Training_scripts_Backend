@@ -4,19 +4,7 @@ import sys
 import subprocess
 import os
 import shutil
-from zipfile import ZipFile
 
-if sys.platform == "win32":
-    try:
-        import requests
-    except Exception:
-        print("installing requests...")
-        python = sys.executable
-        subprocess.check_call(
-            f"{python} -m pip install requests",
-            stdout=subprocess.DEVNULL,
-        )
-        import requests
 
 PLATFORM = (
     "windows" if sys.platform == "win32" else "linux" if sys.platform == "linux" else ""
@@ -95,76 +83,32 @@ def setup_accelerate(platform: str) -> None:
     shutil.move("default_config.yaml", str(path.resolve()))
 
 
-# windows only
-def setup_cudnn():
-    reply = None
-    while reply not in ("y", "n"):
-        reply = input(
-            "Do you want to install the optional cudnn patch for faster "
-            "training on high end 30X0 and 40X0 cards? (y/n): "
-        ).casefold()
-    if reply == "n":
-        return
-
-    r = requests.get(
-        "https://developer.download.nvidia.com/compute/redist/cudnn/v8.6.0/local_installers/11.8/cudnn-windows-x86_64-8.6.0.163_cuda11-archive.zip"
-    )
-    with open("cudnn.zip", "wb") as f:
-        f.write(r.content)
-    with ZipFile("cudnn.zip", "r") as f:
-        f.extractall(path="cudnn_patch")
-    shutil.move(
-        str(Path("cudnn_patch/cudnn-windows-x86_64-8.6.0.163_cuda11-archive/bin")),
-        "cudnn_windows",
-    )
-    os.mkdir("temp")
-    r = requests.get(
-        "https://raw.githubusercontent.com/bmaltais/kohya_ss/9c5bdd17499e3f677a5d7fa081ee0b4fccf5fd4a/tools/cudann_1.8_install.py"
-    )
-    with Path("temp/cudnn.py").open("wb") as f:
-        f.write(r.content)
+def setup_venv(venv_pip):
     subprocess.check_call(
-        f"{Path('venv/Scripts/python.exe')} {Path('temp/cudnn.py')}".split(" ")
-    )
-    shutil.rmtree("temp")
-    shutil.rmtree("cudnn_windows")
-    shutil.rmtree("cudnn_patch")
-    os.remove("cudnn.zip")
-
-
-# windows only
-def setup_windows(venv_pip):
-    subprocess.check_call(
-        f"{venv_pip} install -U torch==2.2.0 torchvision==0.17.0 --index-url https://download.pytorch.org/whl/cu118"
-    )
-    subprocess.check_call(f"{venv_pip} install -U -r requirements.txt")
-    subprocess.check_call(
-        f"{venv_pip} install -U xformers --index-url https://download.pytorch.org/whl/cu118"
-    )
-    subprocess.check_call(f"{venv_pip} install -U ../LyCORIS/.")
-    subprocess.check_call(f"{venv_pip} install -U ../custom_scheduler/.")
-    subprocess.check_call(f"{venv_pip} install -U -r ../requirements.txt")
-
-
-# linux only
-def setup_linux(venv_pip):
-    subprocess.check_call(
-        f"{venv_pip} install -U torch==2.2.0 torchvision==0.17.0 --index-url https://download.pytorch.org/whl/cu118",
-        shell=True,
+        f"{venv_pip} install -U torch==2.2.0 torchvision==0.17.0 --index-url https://download.pytorch.org/whl/cu121",
+        shell=PLATFORM == "linux",
     )
     subprocess.check_call(
-        f"{venv_pip} install -U xformers --index-url https://download.pytorch.org/whl/cu118",
-        shell=True,
+        f"{venv_pip} install -U xformers --index-url https://download.pytorch.org/whl/cu121",
+        shell=PLATFORM == "linux",
     )
-    subprocess.check_call(f"{venv_pip} install -U -r requirements.txt", shell=True)
-    subprocess.check_call(f"{venv_pip} install -U ../LyCORIS/.", shell=True)
-    subprocess.check_call(f"{venv_pip} install -U ../custom_scheduler/.", shell=True)
-    subprocess.check_call(f"{venv_pip} install -U -r ../requirements.txt", shell=True)
+    subprocess.check_call(
+        f"{venv_pip} install -U -r requirements.txt", shell=PLATFORM == "linux"
+    )
+    subprocess.check_call(
+        f"{venv_pip} install -U ../LyCORIS/.", shell=PLATFORM == "linux"
+    )
+    subprocess.check_call(
+        f"{venv_pip} install -U ../custom_scheduler/.", shell=PLATFORM == "linux"
+    )
+    subprocess.check_call(
+        f"{venv_pip} install -U -r ../requirements.txt", shell=PLATFORM == "linux"
+    )
 
 
 # colab only
 def setup_colab(venv_pip):
-    setup_linux(venv_pip)
+    setup_venv(venv_pip)
     setup_accelerate("linux")
 
 
@@ -223,7 +167,10 @@ def main():
         if not set_execution_policy():
             quit()
 
-    setup_config(len(sys.argv) > 1 and sys.argv[1] == "colab", len(sys.argv) > 1 and sys.argv[1] == 'local')
+    setup_config(
+        len(sys.argv) > 1 and sys.argv[1] == "colab",
+        len(sys.argv) > 1 and sys.argv[1] == "local",
+    )
 
     os.chdir("sd_scripts")
     if PLATFORM == "windows":
@@ -239,11 +186,7 @@ def main():
         print("completed installing")
         quit()
 
-    if PLATFORM == "windows":
-        setup_windows(pip)
-        setup_cudnn()
-    else:
-        setup_linux(pip)
+    setup_venv(pip)
     setup_accelerate(PLATFORM)
 
     print(

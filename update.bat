@@ -1,5 +1,5 @@
 @echo off
 
-rem call sd_scripts\venv\Scripts\activate
+git pull
 python updater.py
 pause
