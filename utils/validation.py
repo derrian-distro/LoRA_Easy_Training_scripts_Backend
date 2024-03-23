@@ -74,7 +74,7 @@ def validate_args(args: dict) -> tuple[bool, list[str], dict]:
             if arg == "lr_scheduler_args":
                 vals = [f"{k}={v}" for k, v in val.items()]
                 val = vals
-            if arg == "keep_tokens_separator" and len(args[arg]) < 1:
+            if arg == "keep_tokens_separator" and len(val) < 1:
                 passed_validation = False
                 errors.append("Keep Tokens Separator is an empty string")
                 continue
