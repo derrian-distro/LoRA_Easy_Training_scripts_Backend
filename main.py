@@ -108,12 +108,15 @@ async def is_training(_: Request) -> Response:
     )
 
 
-async def start_training(_: Request) -> Response:
+async def start_training(request: Request) -> Response:
     if app.state.TRAINING_THREAD and app.state.TRAINING_THREAD.poll() is None:
         return Response(
             json.dumps({"detail": "Training Already Running"}),
             status_code=status.HTTP_409_CONFLICT,
         )
+    is_sdxl = request.query_params.get("sdxl", False)
+    if is_sdxl:
+        app.state.SD_TYPE = "sdxl_train_network.py"
     server_config_dict = (
         json.loads(app.state.CONFIG.read_text()) if app.state.CONFIG else {}
     )

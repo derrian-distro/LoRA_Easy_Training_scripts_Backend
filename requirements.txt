@@ -10,3 +10,4 @@ pycloudflared
 pytorch-optimizer
 bitsandbytes
 scipy
+came-pytorch
