@@ -14,6 +14,10 @@ import uvicorn
 import os
 from threading import Thread
 
+from transformers import CLIPTokenizer
+tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
+
+
 if len(sys.argv) > 1:
     os.chdir(sys.argv[1])
 
@@ -103,6 +107,15 @@ async def is_training(_: Request) -> JSONResponse:
             "errored": exit_id is not None and exit_id != 0,
         }
     )
+
+async def tokenize_text(request: Request) -> JSONResponse:
+    text = request.query_params.get("text")
+    tokens = tokenizer.tokenize(text)
+    token_ids = tokenizer.convert_tokens_to_ids(tokens)
+    # print("Original string:", text)
+    # print("Tokenized string:", tokens)
+    # print("Token IDs:", token_ids)
+    return JSONResponse({"tokens": tokens, "token_ids": token_ids, "length": len(tokens)})
 
 
 async def start_training(request: Request) -> JSONResponse:
@@ -214,6 +227,7 @@ routes = [
     Route("/validate", validate_inputs, methods=["POST"]),
     Route("/is_training", is_training, methods=["GET"]),
     Route("/train", start_training, methods=["GET"]),
+    Route("/tokenize", tokenize_text, methods=["GET"]),
     Route("/stop_training", stop_training, methods=["GET"]),
     Route("/resize", start_resize, methods=["POST"]),
 ]
