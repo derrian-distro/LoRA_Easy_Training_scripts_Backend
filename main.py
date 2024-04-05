@@ -85,7 +85,6 @@ async def validate_inputs(request: Request) -> JSONResponse:
     body = json.loads(body)
     passed_validation, sdxl, errors, args, dataset_args, tags = validate(body)
     if passed_validation:
-        app.state.SD_TYPE = "sdxl_train_network.py" if sdxl else "train_network.py"
         output_args, _ = process_args(args)
         output_dataset_args, _ = process_dataset_args(dataset_args)
         final_args = {"args": output_args, "dataset": output_dataset_args, "tags": tags}
@@ -112,10 +111,27 @@ async def start_training(request: Request) -> JSONResponse:
             {"detail": "Training Already Running"},
             status_code=status.HTTP_409_CONFLICT,
         )
-
     is_sdxl = request.query_params.get("sdxl", False)
-    if is_sdxl:
-        app.state.SD_TYPE = "sdxl_train_network.py"
+    train_type = request.query_params.get("train_mode", "lora")
+    match [train_type, is_sdxl]:
+        case ['lora', False]:
+            app.state.TRAIN_SCRIPT = "train_network.py"
+        case ['lora', True]:
+            app.state.TRAIN_SCRIPT = "sdxl_train_network.py"
+        case ['textual_inversion', False]:
+            app.state.TRAIN_SCRIPT = "train_textual_inversion.py"
+        case ['textual_inversion', True]:
+            app.state.TRAIN_SCRIPT = "sdxl_train_textual_inversion.py"
+        case _:
+            print("Unknown Train Parameters")
+            return JSONResponse({
+                        "detail": "Invalid Train Parameters",
+                        "sdxl": is_sdxl,
+                        "train_type": train_type
+                    },
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
     server_config_dict = (
         json.loads(app.state.CONFIG.read_text()) if app.state.CONFIG else {}
     )
@@ -127,10 +143,11 @@ async def start_training(request: Request) -> JSONResponse:
             {"detail": "No Previously Validated Args"},
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+    print(app.state.TRAIN_SCRIPT)
     app.state.TRAINING_THREAD = subprocess.Popen(
         [
             f"{python}",
-            f"{Path(f'sd_scripts/{app.state.SD_TYPE}').resolve()}",
+            f"{Path(f'sd_scripts/{app.state.TRAIN_SCRIPT}').resolve()}",
             f"--config_file={config.resolve()}",
             f"--dataset_config={dataset.resolve()}",
         ]
@@ -202,7 +219,7 @@ routes = [
 ]
 
 app = Starlette(debug=True, routes=routes)
-app.state.SD_TYPE = "train_network.py"
+app.state.TRAIN_SCRIPT = None
 app.state.TRAINING_THREAD = None
 app.state.CONFIG = Path("config.json")
 app.state.MONITOR_THREAD = None
