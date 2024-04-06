@@ -173,7 +173,6 @@ async def start_resize(request: Request) -> JSONResponse:
         )
     data = await request.body()
     data: list[str] = json.loads(data)
-    print(data)
     python = sys.executable
     app.state.TRAINING_THREAD = subprocess.Popen(
         [python, f"{Path('utils/resize_lora.py').resolve()}"] + data
