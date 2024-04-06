@@ -124,7 +124,7 @@ async def start_training(request: Request) -> JSONResponse:
             {"detail": "Training Already Running"},
             status_code=status.HTTP_409_CONFLICT,
         )
-    is_sdxl = request.query_params.get("sdxl", False)
+    is_sdxl = request.query_params.get("sdxl", "False") == "True"
     train_type = request.query_params.get("train_mode", "lora")
     match [train_type, is_sdxl]:
         case ['lora', False]:
@@ -136,7 +136,7 @@ async def start_training(request: Request) -> JSONResponse:
         case ['textual_inversion', True]:
             app.state.TRAIN_SCRIPT = "sdxl_train_textual_inversion.py"
         case _:
-            print("Unknown Train Parameters")
+            print("Unknown training request: {request.query_params}")
             return JSONResponse({
                         "detail": "Invalid Train Parameters",
                         "sdxl": is_sdxl,
