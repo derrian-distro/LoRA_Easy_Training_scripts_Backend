@@ -126,6 +126,7 @@ def setup_config(colab: bool = False, local: bool = False) -> None:
             "remote_mode": "cloudflared",
             "kill_tunnel_on_train_start": True,
             "kill_server_on_train_end": True,
+            "colab": True,
         }
         with open("config.json", "w") as f:
             f.write(json.dumps(config, indent=2))

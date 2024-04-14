@@ -1,3 +1,4 @@
+# stolen from https://github.com/neggles/neurosis
 import math
 
 import torch
