@@ -7,3 +7,4 @@ pyngrok
 pycloudflared
 scipy
 came-pytorch
+pytorch_optimizer
