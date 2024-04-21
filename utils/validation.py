@@ -255,7 +255,7 @@ def validate_save_tags(dataset: dict) -> dict:
 
 
 def get_tags_from_file(file: str, tags: dict) -> None:
-    with open(file, "r") as f:
+    with open(file, "r", encoding="utf-8") as f:
         temp = f.read().replace(", ", ",").split(",")
         for tag in temp:
             if tag in tags:
