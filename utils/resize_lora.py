@@ -259,7 +259,9 @@ def resize_lora_model(
                     if del_conv:
                         del o_lora_sd[block_down_name + "." + "lora_down.weight"]
                         del o_lora_sd[block_up_name + "." + "lora_up.weight"]
-                        del o_lora_sd[block_up_name + "." "alpha"]
+                        del o_lora_sd[block_up_name + "." + "alpha"]
+                        if f"{block_up_name}.dora_scale" in o_lora_sd:
+                            del o_lora_sd[block_up_name + "." + "dora_scale"]
                         block_down_name = None
                         block_up_name = None
                         lora_down_weight = None
@@ -281,6 +283,8 @@ def resize_lora_model(
                         del o_lora_sd[block_down_name + "." + "lora_down.weight"]
                         del o_lora_sd[block_up_name + "." + "lora_up.weight"]
                         del o_lora_sd[block_up_name + "." "alpha"]
+                        if f"{block_up_name}.dora_scale" in o_lora_sd:
+                            del o_lora_sd[block_up_name + "." + "dora_scale"]
                         block_down_name = None
                         block_up_name = None
                         lora_down_weight = None
