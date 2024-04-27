@@ -8,3 +8,4 @@ pycloudflared
 scipy
 came-pytorch
 pytorch_optimizer
+lycoris-lora==2.3.0.dev6
