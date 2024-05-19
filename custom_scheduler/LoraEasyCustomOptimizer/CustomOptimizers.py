@@ -172,8 +172,8 @@ class Rex(_LRScheduler):
         div = (1 - self.d) + (self.d * (1 - progress))
 
         return [
-            self.min_lr + (lr - self.min_lr) * ((1 - progress) / div)
-            for lr in self.max_lrs
+            min_lr + (lr - min_lr) * ((1 - progress) / div)
+            for lr, min_lr in zip(self.max_lrs, self.base_lrs)
         ]
 
     def step(self) -> None:
