@@ -1,6 +1,10 @@
 from pathlib import Path
 import json
 
+from library.train_util import BucketManager
+from PIL import Image
+import math
+
 
 def validate(args: dict) -> tuple[bool, bool, list[str], dict, dict]:
     over_errors = []
@@ -168,10 +172,9 @@ def validate_restarts(args: dict, dataset: dict) -> None:
         steps = args["max_train_steps"]
     else:
         steps = calculate_steps(
-            dataset["subsets"],
+            dataset,
             args["max_train_epochs"],
-            dataset["general"]["batch_size"]
-            * args.get("gradient_accumulation_steps", 1),
+            args.get("gradient_accumulation_steps", 1),
         )
     steps = steps // args["lr_scheduler_num_cycles"]
     args["lr_scheduler_args"].append(f"first_cycle_steps={steps}")
@@ -185,10 +188,9 @@ def validate_warmup_ratio(args: dict, dataset: dict) -> None:
         steps = args["max_train_steps"]
     else:
         steps = calculate_steps(
-            dataset["subsets"],
+            dataset,
             args["max_train_epochs"],
-            dataset["general"]["batch_size"]
-            * args.get("gradient_accumulation_steps", 1),
+            args.get("gradient_accumulation_steps", 1),
         )
     steps = round(steps * args["warmup_ratio"])
     if "lr_scheduler_type" in args:
@@ -209,10 +211,9 @@ def validate_rex(args: dict, dataset: dict) -> None:
         steps = args["max_train_steps"]
     else:
         steps = calculate_steps(
-            dataset["subsets"],
+            dataset,
             args["max_train_epochs"],
-            dataset["general"]["batch_size"]
-            * args.get("gradient_accumulation_steps", 1),
+            args.get("gradient_accumulation_steps", 1),
         )
     args["lr_scheduler_args"].append(f"total_steps={steps}")
 
@@ -264,22 +265,42 @@ def get_tags_from_file(file: str, tags: dict) -> None:
                 tags[tag] = 1
 
 
-def calculate_steps(subsets: list, epochs: int, batch_size: int) -> int:
-    steps = 0
+def calculate_steps(
+    dataset_args: dict[str, dict | list[dict]],
+    num_epochs: int,
+    grad_acc_steps: int = 1,
+) -> int:
+    general_args: dict = dataset_args["general"]
+    subsets: list = dataset_args["subsets"]
+    supported_types = [".png", ".jpg", ".jpeg", ".webp", ".bmp"]
+    resolution = (
+        (general_args["resolution"], general_args["resolution"])
+        if isinstance(general_args["resolution"], int)
+        else general_args["resolution"]
+    )
+    if general_args.get("enable_bucket", False):
+        bucketManager = BucketManager(
+            general_args.get("bucket_no_upscale", False),
+            resolution,
+            general_args["min_bucket_reso"],
+            general_args["max_bucket_reso"],
+            general_args["bucket_reso_steps"],
+        )
+        if not general_args.get("bucket_no_upscale", False):
+            bucketManager.make_buckets()
+    else:
+        bucketManager = BucketManager(False, resolution, None, None, None)
+        bucketManager.set_predefined_resos([resolution])
     for subset in subsets:
-        image_count = 0
-        files = list(Path(subset["image_dir"]).iterdir())
-        for file in files:
-            if file.suffix.lower() not in {
-                ".png",
-                ".bmp",
-                ".gif",
-                ".jpeg",
-                ".jpg",
-                ".webp",
-            }:
+        for image in Path(subset["image_dir"]).iterdir():
+            if image.suffix not in supported_types:
                 continue
-            image_count += 1
-        steps += image_count * subset["num_repeats"]
-    steps = (steps * epochs) // batch_size
-    return steps
+            with Image.open(image) as img:
+                bucket_reso, _, _ = bucketManager.select_bucket(img.width, img.height)
+                for _ in range(subset["num_repeats"]):
+                    bucketManager.add_image(bucket_reso, image)
+    steps_before_acc = sum(
+        math.ceil(len(bucket) / general_args["batch_size"])
+        for bucket in bucketManager.buckets
+    )
+    return math.ceil(steps_before_acc / grad_acc_steps) * num_epochs

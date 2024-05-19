@@ -15,6 +15,7 @@ import os
 from threading import Thread
 
 from transformers import CLIPTokenizer
+
 tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
 
 
@@ -108,6 +109,7 @@ async def is_training(_: Request) -> JSONResponse:
         }
     )
 
+
 async def tokenize_text(request: Request) -> JSONResponse:
     text = request.query_params.get("text")
     tokens = tokenizer.tokenize(text)
@@ -115,7 +117,9 @@ async def tokenize_text(request: Request) -> JSONResponse:
     # print("Original string:", text)
     # print("Tokenized string:", tokens)
     # print("Token IDs:", token_ids)
-    return JSONResponse({"tokens": tokens, "token_ids": token_ids, "length": len(tokens)})
+    return JSONResponse(
+        {"tokens": tokens, "token_ids": token_ids, "length": len(tokens)}
+    )
 
 
 async def start_training(request: Request) -> JSONResponse:
@@ -127,21 +131,22 @@ async def start_training(request: Request) -> JSONResponse:
     is_sdxl = request.query_params.get("sdxl", "False") == "True"
     train_type = request.query_params.get("train_mode", "lora")
     match [train_type, is_sdxl]:
-        case ['lora', False]:
+        case ["lora", False]:
             app.state.TRAIN_SCRIPT = "train_network.py"
-        case ['lora', True]:
+        case ["lora", True]:
             app.state.TRAIN_SCRIPT = "sdxl_train_network.py"
-        case ['textual_inversion', False]:
+        case ["textual_inversion", False]:
             app.state.TRAIN_SCRIPT = "train_textual_inversion.py"
-        case ['textual_inversion', True]:
+        case ["textual_inversion", True]:
             app.state.TRAIN_SCRIPT = "sdxl_train_textual_inversion.py"
         case _:
             print("Unknown training request: {request.query_params}")
-            return JSONResponse({
-                        "detail": "Invalid Train Parameters",
-                        "sdxl": is_sdxl,
-                        "train_type": train_type
-                    },
+            return JSONResponse(
+                {
+                    "detail": "Invalid Train Parameters",
+                    "sdxl": is_sdxl,
+                    "train_type": train_type,
+                },
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
