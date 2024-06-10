@@ -95,9 +95,6 @@ def setup_venv(venv_pip):
     subprocess.check_call(
         f"{venv_pip} install -U -r requirements.txt", shell=PLATFORM == "linux"
     )
-    # subprocess.check_call(
-    #     f"{venv_pip} install -U ../LyCORIS/.", shell=PLATFORM == "linux"
-    # )
     subprocess.check_call(
         f"{venv_pip} install -U ../custom_scheduler/.", shell=PLATFORM == "linux"
     )
