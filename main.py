@@ -26,7 +26,7 @@ if not Path("runtime_store").exists():
     Path("runtime_store").mkdir()
 
 
-async def stop_server(_: Request) -> JSONResponse:
+async def stop_server(_: Request = None) -> JSONResponse:
     global server
     if app.state.TRAINING_THREAD and app.state.TRAINING_THREAD.poll() is None:
         return JSONResponse({"detail": "training still running"})
@@ -51,7 +51,7 @@ async def start_tunnel_service(request: Request) -> JSONResponse:
     return JSONResponse({"service_started": bool(app.state.TUNNEL)})
 
 
-async def kill_tunnel_service(_: Request) -> JSONResponse:
+async def kill_tunnel_service(_: Request = None) -> JSONResponse:
     if not app.state.TUNNEL:
         return JSONResponse(
             {"killed": False, "reason": "No Tunnel Service Running"},
@@ -123,6 +123,12 @@ async def tokenize_text(request: Request) -> JSONResponse:
 
 
 async def start_training(request: Request) -> JSONResponse:
+    global server
+    temp = json.loads(app.state.CONFIG.read_text())
+    if "colab" in temp and temp["colab"]:
+        await kill_tunnel_service()
+        await stop_server()
+        return
     if app.state.TRAINING_THREAD and app.state.TRAINING_THREAD.poll() is None:
         return JSONResponse(
             {"detail": "Training Already Running"},

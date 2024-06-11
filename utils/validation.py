@@ -25,6 +25,7 @@ def validate(args: dict) -> tuple[bool, bool, list[str], dict, dict]:
         validate_rex(args_data, dataset_data)
         tag_data = validate_save_tags(dataset_data)
         validate_existing_files(args_data)
+        validate_came(args_data)
     sdxl = validate_sdxl(args_data)
     if not over_pass:
         return False, sdxl, over_errors, args_data, dataset_data, tag_data
@@ -253,6 +254,17 @@ def validate_save_tags(dataset: dict) -> dict:
                 continue
             get_tags_from_file(subset_dir.joinpath(file.name), tags)
     return dict(sorted(tags.items(), key=lambda item: item[1], reverse=True))
+
+
+def validate_came(args: dict) -> None:
+    from main import app
+
+    config = json.loads(app.state.CONFIG.read_text())
+    if args["optimizer_type"] == "Came":
+        if "colab" in config and config["colab"]:
+            args["optimizer_type"] = "came_pytorch.CAME.CAME"
+        else:
+            args["optimizer_type"] = "LoraEasyCustomOptimizer.came.CAME"
 
 
 def get_tags_from_file(file: str, tags: dict) -> None:
