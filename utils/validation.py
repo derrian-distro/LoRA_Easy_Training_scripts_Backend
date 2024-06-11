@@ -257,9 +257,7 @@ def validate_save_tags(dataset: dict) -> dict:
 
 
 def validate_came(args: dict) -> None:
-    from main import app
-
-    config = json.loads(app.state.CONFIG.read_text())
+    config = json.loads(Path("config.json").read_text())
     if args["optimizer_type"] == "Came":
         if "colab" in config and config["colab"]:
             args["optimizer_type"] = "came_pytorch.CAME.CAME"
