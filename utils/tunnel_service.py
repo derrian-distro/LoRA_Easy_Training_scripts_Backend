@@ -31,12 +31,12 @@ class NgrokTunnel:
         ngrok.set_auth_token(self.token)
         self.tunnel: ngrok.NgrokTunnel = None
 
-    def run_tunnel(self) -> None:
+    def run_tunnel(self, port: int = 8000) -> None:
         if self.tunnel:
             print(f"ngrok tunnel: {self.tunnel.public_url}")
             return
         try:
-            self.tunnel = ngrok.connect("8000")
+            self.tunnel = ngrok.connect(f"{port}")
             print(f"ngrok connected: {self.tunnel.public_url}")
         except Exception:
             print("ngrok ran into an issue, stopping ngrok process...")

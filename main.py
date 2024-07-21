@@ -45,9 +45,12 @@ async def start_tunnel_service(request: Request) -> JSONResponse:
         )
         if config_path:
             config_path = Path(config_path)
-        app.state.TUNNEL.run_tunnel(config=Path(config_path) if config_path else None)
+        app.state.TUNNEL.run_tunnel(
+            port=config_data.get("port", 8000),
+            config=Path(config_path) if config_path else None,
+        )
     else:
-        app.state.TUNNEL.run_tunnel()
+        app.state.TUNNEL.run_tunnel(port=config_data.get("port", 8000))
     return JSONResponse({"service_started": bool(app.state.TUNNEL)})
 
 
@@ -251,17 +254,23 @@ app.state.MONITOR_THREAD = None
 
 if not app.state.CONFIG.exists():
     with app.state.CONFIG.open("w", encoding="utf-8") as f:
-        f.write(json.dumps({"remote": False}, indent=2))
+        f.write(json.dumps({"remote": False, "port": 8000}, indent=2))
 
 config_data = json.loads(app.state.CONFIG.read_text())
 if config_data.get("remote", False):
     app.state.TUNNEL = create_tunnel(config_data)
     if isinstance(app.state.TUNNEL, CloudflaredTunnel):
         config_path = config_data.get("cloudflared_config_path", None)
-        app.state.TUNNEL.run_tunnel(config=Path(config_path) if config_path else None)
+        app.state.TUNNEL.run_tunnel(port=config_data.get("port", 8000), config=Path(config_path) if config_path else None)
     else:
-        app.state.TUNNEL.run_tunnel()
-uvi_config = uvicorn.Config(app, host="0.0.0.0", loop="asyncio", log_level="critical")
+        app.state.TUNNEL.run_tunnel(port=config_data.get("port", 8000))
+uvi_config = uvicorn.Config(
+    app,
+    host="0.0.0.0",
+    loop="asyncio",
+    log_level="critical",
+    port=config_data.get("port", 8000),
+)
 server = uvicorn.Server(config=uvi_config)
 
 if __name__ == "__main__":

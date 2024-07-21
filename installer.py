@@ -124,6 +124,7 @@ def setup_config(colab: bool = False, local: bool = False) -> None:
             "kill_tunnel_on_train_start": True,
             "kill_server_on_train_end": True,
             "colab": True,
+            "port": 8000,
         }
         with open("config.json", "w") as f:
             f.write(json.dumps(config, indent=2))
@@ -147,6 +148,7 @@ def setup_config(colab: bool = False, local: bool = False) -> None:
                     "remote": is_remote,
                     "remote_mode": remote_mode,
                     "ngrok_token": ngrok_token,
+                    "port": 8000,
                 },
                 indent=2,
             )

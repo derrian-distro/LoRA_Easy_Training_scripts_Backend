@@ -20,9 +20,8 @@ def validate(args: dict) -> tuple[bool, bool, list[str], dict, dict]:
     over_errors = args_errors + dataset_errors
     tag_data = {}
     if not over_errors:
-        validate_restarts(args_data, dataset_data)
         validate_warmup_ratio(args_data, dataset_data)
-        validate_rex(args_data, dataset_data)
+        validate_restarts(args_data, dataset_data)
         tag_data = validate_save_tags(dataset_data)
         validate_existing_files(args_data)
         validate_came(args_data)
@@ -104,9 +103,7 @@ def validate_args(args: dict) -> tuple[bool, list[str], dict]:
             continue
         if file["name"] in output_args and not Path(output_args[file["name"]]).exists():
             passed_validation = False
-            errors.append(
-                f"{file['name']} input '{output_args[file['name']]}' does not exist"
-            )
+            errors.append(f"{file['name']} input '{output_args[file['name']]}' does not exist")
             continue
         elif file["name"] in output_args:
             output_args[file["name"]] = Path(output_args[file["name"]]).as_posix()
@@ -178,7 +175,7 @@ def validate_restarts(args: dict, dataset: dict) -> None:
             args.get("gradient_accumulation_steps", 1),
         )
     steps = steps // args["lr_scheduler_num_cycles"]
-    args["lr_scheduler_args"].append(f"first_cycle_steps={steps}")
+    args["lr_scheduler_args"].append(f"first_cycle_max_steps={steps}")
     del args["lr_scheduler_num_cycles"]
 
 
@@ -195,39 +192,17 @@ def validate_warmup_ratio(args: dict, dataset: dict) -> None:
         )
     steps = round(steps * args["warmup_ratio"])
     if "lr_scheduler_type" in args:
-        args["lr_scheduler_args"].append(
-            f"warmup_steps={steps // args.get('lr_scheduler_num_cycles', 1)}"
-        )
+        args["lr_scheduler_args"].append(f"warmup_steps={steps // args.get('lr_scheduler_num_cycles', 1)}")
     else:
         args["lr_warmup_steps"] = steps
     del args["warmup_ratio"]
 
 
-def validate_rex(args: dict, dataset: dict) -> None:
-    if "lr_scheduler_type" not in args:
-        return
-    if args["lr_scheduler_type"].split(".")[-1] != "Rex":
-        return
-    if "max_train_steps" in args:
-        steps = args["max_train_steps"]
-    else:
-        steps = calculate_steps(
-            dataset,
-            args["max_train_epochs"],
-            args.get("gradient_accumulation_steps", 1),
-        )
-    args["lr_scheduler_args"].append(f"total_steps={steps}")
-
-
 def validate_existing_files(args: dict) -> None:
-    file_name = Path(
-        f"{args['output_dir']}/{args.get('output_name', 'last')}.safetensors"
-    )
+    file_name = Path(f"{args['output_dir']}/{args.get('output_name', 'last')}.safetensors")
     offset = 1
     while file_name.exists():
-        file_name = Path(
-            f"{args['output_dir']}/{args.get('output_name', 'last')}_{offset}.safetensors"
-        )
+        file_name = Path(f"{args['output_dir']}/{args.get('output_name', 'last')}_{offset}.safetensors")
         offset += 1
     if offset > 1:
         print(f"Duplicate file found, changing file name to {file_name.stem}")
@@ -310,7 +285,6 @@ def calculate_steps(
                 for _ in range(subset["num_repeats"]):
                     bucketManager.add_image(bucket_reso, image)
     steps_before_acc = sum(
-        math.ceil(len(bucket) / general_args["batch_size"])
-        for bucket in bucketManager.buckets
+        math.ceil(len(bucket) / general_args["batch_size"]) for bucket in bucketManager.buckets
     )
     return math.ceil(steps_before_acc / grad_acc_steps) * num_epochs
