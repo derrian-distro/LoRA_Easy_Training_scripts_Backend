@@ -85,6 +85,11 @@ def validate_args(args: dict) -> tuple[bool, list[str], dict]:
                 continue
             if not val:
                 continue
+            if isinstance(val, str):
+                if val.lower() == "true":
+                    val = True
+                elif val.lower() == "false":
+                    continue
             output_args[arg] = val
         if "fa" in value:
             del value["fa"]
