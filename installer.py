@@ -85,11 +85,11 @@ def setup_accelerate(platform: str) -> None:
 
 def setup_venv(venv_pip):
     subprocess.check_call(
-        f"{venv_pip} install -U torch==2.2.1 torchvision==0.17.1 --index-url https://download.pytorch.org/whl/cu121",
+        f"{venv_pip} install -U torch==2.3.1 torchvision==0.18.1 --index-url https://download.pytorch.org/whl/cu121",
         shell=PLATFORM == "linux",
     )
     subprocess.check_call(
-        f"{venv_pip} install -U xformers==0.0.25 --index-url https://download.pytorch.org/whl/cu121",
+        f"{venv_pip} install -U xformers==0.0.27 --index-url https://download.pytorch.org/whl/cu121",
         shell=PLATFORM == "linux",
     )
     subprocess.check_call(
