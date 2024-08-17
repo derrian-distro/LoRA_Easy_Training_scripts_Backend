@@ -113,7 +113,10 @@ def validate_args(args: dict) -> tuple[bool, list[str], dict]:
         elif file["name"] in output_args:
             output_args[file["name"]] = Path(output_args[file["name"]]).as_posix()
     if "network_module" not in output_args:
-        output_args["network_module"] = "networks.lora"
+        if "guidance_scale" in output_args:
+            output_args["network_module"] = "networks.lora_flux"
+        else:
+            output_args["network_module"] = "networks.lora"
     config = Path("config.json")
     config_dict = json.loads(config.read_text()) if config.is_file() else {}
     if "colab" in config_dict and config_dict["colab"]:

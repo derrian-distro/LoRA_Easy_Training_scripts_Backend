@@ -5,10 +5,7 @@ import subprocess
 import os
 import shutil
 
-
-PLATFORM = (
-    "windows" if sys.platform == "win32" else "linux" if sys.platform == "linux" else ""
-)
+PLATFORM = "windows" if sys.platform == "win32" else "linux" if sys.platform == "linux" else ""
 
 
 def check_version_and_platform() -> bool:
@@ -36,9 +33,7 @@ def set_execution_policy() -> None:
         subprocess.check_call(str(Path("installables/change_execution_policy.bat")))
     except subprocess.SubprocessError:
         try:
-            subprocess.check_call(
-                str(Path("installables/change_execution_policy_backup.bat"))
-            )
+            subprocess.check_call(str(Path("installables/change_execution_policy_backup.bat")))
         except subprocess.SubprocessError as e:
             print(f"Failed to change the execution policy with error:\n {e}")
             return False
@@ -85,22 +80,18 @@ def setup_accelerate(platform: str) -> None:
 
 def setup_venv(venv_pip):
     subprocess.check_call(
-        f"{venv_pip} install -U torch==2.3.1 torchvision==0.18.1 --index-url https://download.pytorch.org/whl/cu121",
+        f"{venv_pip} install -U torch torchvision --index-url https://download.pytorch.org/whl/cu124",
         shell=PLATFORM == "linux",
     )
-    subprocess.check_call(
-        f"{venv_pip} install -U xformers==0.0.27 --index-url https://download.pytorch.org/whl/cu121",
-        shell=PLATFORM == "linux",
-    )
-    subprocess.check_call(
-        f"{venv_pip} install -U -r requirements.txt", shell=PLATFORM == "linux"
-    )
-    subprocess.check_call(
-        f"{venv_pip} install -U ../custom_scheduler/.", shell=PLATFORM == "linux"
-    )
-    subprocess.check_call(
-        f"{venv_pip} install -U -r ../requirements.txt", shell=PLATFORM == "linux"
-    )
+    if PLATFORM == "windows":
+        subprocess.check_call("venv\\Scripts\\python.exe ..\\fix_torch.py")
+    # subprocess.check_call(
+    #     f"{venv_pip} install -U xformers==0.0.28.dev881 --index-url https://download.pytorch.org/whl/cu124",
+    #     shell=PLATFORM == "linux",
+    # )
+    subprocess.check_call(f"{venv_pip} install -U -r requirements.txt", shell=PLATFORM == "linux")
+    subprocess.check_call(f"{venv_pip} install -U ../custom_scheduler/.", shell=PLATFORM == "linux")
+    subprocess.check_call(f"{venv_pip} install -U -r ../requirements.txt", shell=PLATFORM == "linux")
 
 
 # colab only
@@ -132,9 +123,7 @@ def setup_config(colab: bool = False, local: bool = False) -> None:
     is_remote = False if local else ask_yes_no("are you using this remotely?")
     remote_mode = "none"
     if is_remote:
-        remote_mode = (
-            "ngrok" if ask_yes_no("do you want to use ngrok?") else "cloudflared"
-        )
+        remote_mode = "ngrok" if ask_yes_no("do you want to use ngrok?") else "cloudflared"
     ngrok_token = ""
     if remote_mode == "ngrok":
         ngrok_token = input(
@@ -189,9 +178,7 @@ def main():
     setup_venv(pip)
     setup_accelerate(PLATFORM)
 
-    print(
-        "Completed installing, you can run the server via the run.bat or run.sh files"
-    )
+    print("Completed installing, you can run the server via the run.bat or run.sh files")
 
 
 if __name__ == "__main__":
