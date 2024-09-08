@@ -24,7 +24,7 @@ def validate(args: dict) -> tuple[bool, bool, list[str], dict, dict]:
         validate_restarts(args_data, dataset_data)
         tag_data = validate_save_tags(dataset_data)
         validate_existing_files(args_data)
-        validate_came(args_data)
+        validate_optimizer(args_data)
     sdxl = validate_sdxl(args_data)
     if not over_pass:
         return False, sdxl, over_errors, args_data, dataset_data, tag_data
@@ -239,13 +239,20 @@ def validate_save_tags(dataset: dict) -> dict:
     return dict(sorted(tags.items(), key=lambda item: item[1], reverse=True))
 
 
-def validate_came(args: dict) -> None:
+def validate_optimizer(args: dict) -> None:
     config = json.loads(Path("config.json").read_text())
-    if args["optimizer_type"] == "Came":
-        if "colab" in config and config["colab"]:
-            args["optimizer_type"] = "came_pytorch.CAME.CAME"
-        else:
-            args["optimizer_type"] = "LoraEasyCustomOptimizer.came.CAME"
+    match args["optimizer_type"]:
+        case "came":
+            if "colab" in config and config["colab"]:
+                args["optimizer_type"] = "came_pytorch.CAME.CAME"
+            else:
+                args["optimizer_type"] = "LoraEasyCustomOptimizer.came.CAME"
+        case "Compass":
+            args["optimizer_type"] = "LoraEasyCustomOptimizer.compass.Compass"
+        case "LPFAdamW":
+            args["optimizer_type"] = "LoraEasyCustomOptimizer.lpfadamw.LPFAdamW"
+        case "RMSProp":
+            args["optimizer_type"] = "LoraEasyCustomOptimizer.rmsprop.RMSProp"
 
 
 def get_tags_from_file(file: str, tags: dict) -> None:
