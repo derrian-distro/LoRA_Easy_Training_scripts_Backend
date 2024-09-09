@@ -241,17 +241,17 @@ def validate_save_tags(dataset: dict) -> dict:
 
 def validate_optimizer(args: dict) -> None:
     config = json.loads(Path("config.json").read_text())
-    match args["optimizer_type"]:
+    match args["optimizer_type"].lower():
         case "came":
             if "colab" in config and config["colab"]:
                 args["optimizer_type"] = "came_pytorch.CAME.CAME"
             else:
                 args["optimizer_type"] = "LoraEasyCustomOptimizer.came.CAME"
-        case "Compass":
+        case "compass":
             args["optimizer_type"] = "LoraEasyCustomOptimizer.compass.Compass"
-        case "LPFAdamW":
+        case "lpfadamw":
             args["optimizer_type"] = "LoraEasyCustomOptimizer.lpfadamw.LPFAdamW"
-        case "RMSProp":
+        case "rmsprop":
             args["optimizer_type"] = "LoraEasyCustomOptimizer.rmsprop.RMSProp"
 
 
