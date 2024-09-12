@@ -12,6 +12,7 @@ class RexAnnealingWarmRestarts(LRScheduler):
         min_lr: float = 1e-6,
         warmup_steps: int = 0,
         last_epoch: int = -1,
+        d: float = 0.9,
     ) -> None:
         if not isinstance(optimizer, Optimizer):
             raise TypeError(f"{type(optimizer).__name__} is not an Optimizer")
@@ -19,7 +20,7 @@ class RexAnnealingWarmRestarts(LRScheduler):
         self.cycle_multiplier = cycle_multiplier
         self.gamma = gamma  # debating calling this decay_rate or something
         self.last_epoch = last_epoch
-        self.d = 0.9
+        self.d = d
 
         # new run
         if last_epoch == -1:
