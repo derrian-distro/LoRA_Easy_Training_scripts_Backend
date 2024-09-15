@@ -62,7 +62,6 @@ class RMSProp(Optimizer):
                     state["ema_squared"] = torch.zeros_like(p.data)
 
                 # unpack
-                # unpack
                 if p.dtype in {torch.float16, torch.bfloat16}:
                     grad = grad.to(torch.float32)
                     p_fp32 = p.clone().to(torch.float32)
