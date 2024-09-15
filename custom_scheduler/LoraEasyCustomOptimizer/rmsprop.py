@@ -68,7 +68,7 @@ class RMSProp(Optimizer):
                     p_fp32 = p.clone().to(torch.float32)
                     ema_squared = state["ema_squared"].to(torch.float32)
                 else:
-                    grad = p.grad.data
+                    grad = grad.data
                     ema_squared = state["ema_squared"]
 
                 beta = group["betas"]

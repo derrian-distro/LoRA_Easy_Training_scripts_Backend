@@ -76,7 +76,7 @@ class Compass(Optimizer):
                     ema = state["ema"].to(torch.float32)
                     ema_squared = state["ema_squared"].to(torch.float32)
                 else:
-                    grad = p.grad.data
+                    grad = grad.data
                     ema, ema_squared = state["ema"], state["ema_squared"]
 
                 beta1, beta2 = group["betas"]
