@@ -49,7 +49,6 @@ class LPFAdamW(Optimizer):
         loss = closure() if closure is not None else None
         for group in self.param_groups:
             for p in group["params"]:
-                assert p.dtype == torch.bfloat16, "only bfloat 16 is supported."
                 if p.grad is None:
                     continue
                 grad = p.grad
@@ -62,17 +61,21 @@ class LPFAdamW(Optimizer):
                 if len(state) == 0:
                     state["step"] = 0
                     # Exponential moving average of gradient values
-                    state["smoothing"] = torch.zeros_like(p.data, dtype=torch.bfloat16)
-                    state["ema"] = torch.zeros_like(p.data, dtype=torch.bfloat16)
+                    state["smoothing"] = torch.zeros_like(p.data)
+                    state["ema"] = torch.zeros_like(p.data)
                     # Exponential moving average of squared gradient values
-                    state["ema_squared"] = torch.zeros_like(p.data, dtype=torch.bfloat16)
+                    state["ema_squared"] = torch.zeros_like(p.data)
 
                 # unpack
-                grad = grad.to(torch.float32)
-                p_fp32 = p.clone().to(torch.float32)
-                smoothing = state["smoothing"].to(torch.float32)
-                ema = state["ema"].to(torch.float32)
-                ema_squared = state["ema_squared"].to(torch.float32)
+                if p.dtype in {torch.float16, torch.bfloat16}:
+                    grad = grad.to(torch.float32)
+                    p_fp32 = p.clone().to(torch.float32)
+                    smoothing = state["smoothing"].to(torch.float32)
+                    ema = state["ema"].to(torch.float32)
+                    ema_squared = state["ema_squared"].to(torch.float32)
+                else:
+                    grad = p.grad.data
+                    ema, ema_squared, smoothing = state["ema"], state["ema_squared"], state["smoothing"]
 
                 beta1, beta2, beta3 = group["betas"]
                 amplification_factor = group["amp_fac"]
@@ -107,10 +110,16 @@ class LPFAdamW(Optimizer):
 
                 if weight_decay != 0:
                     # Perform stepweight decay
-                    p_fp32.data.mul_(1 - step_size * weight_decay)
+                    if p.dtype in {torch.float16, torch.bfloat16}:
+                        p_fp32.data.mul_(1 - step_size * weight_decay)
+                    else:
+                        p.data.mul_(1 - step_size * weight_decay)
 
                 # p = p - lr * grad / denom
-                p_fp32.data.addcdiv_(ema, denom, value=-step_size)
+                if p.dtype in {torch.float16, torch.bfloat16}:
+                    p_fp32.data.addcdiv_(grad, denom, value=-step_size)
+                else:
+                    p.data.addcdiv_(grad, denom, value=-step_size)
 
                 # pack
                 if p.dtype in {torch.float16, torch.bfloat16}:
