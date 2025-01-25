@@ -62,9 +62,7 @@ async def kill_tunnel_service(_: Request = None) -> JSONResponse:
         )
     app.state.TUNNEL.kill_service()
     app.state.TUNNEL = None
-    return JSONResponse(
-        {"killed": True, "reason": "Tunnel Service Successfully Killed"}
-    )
+    return JSONResponse({"killed": True, "reason": "Tunnel Service Successfully Killed"})
 
 
 async def check_path(request: Request) -> JSONResponse:
@@ -74,11 +72,7 @@ async def check_path(request: Request) -> JSONResponse:
     valid = False
     if body["type"] == "folder" and file_path.is_dir():
         valid = True
-    if (
-        body["type"] == "file"
-        and file_path.is_file()
-        and file_path.suffix in body["extensions"]
-    ):
+    if body["type"] == "file" and file_path.is_file() and file_path.suffix in body["extensions"]:
         valid = True
     return JSONResponse({"valid": valid})
 
@@ -120,9 +114,7 @@ async def tokenize_text(request: Request) -> JSONResponse:
     # print("Original string:", text)
     # print("Tokenized string:", tokens)
     # print("Token IDs:", token_ids)
-    return JSONResponse(
-        {"tokens": tokens, "token_ids": token_ids, "length": len(tokens)}
-    )
+    return JSONResponse({"tokens": tokens, "token_ids": token_ids, "length": len(tokens)})
 
 
 async def start_training(request: Request) -> JSONResponse:
@@ -139,14 +131,17 @@ async def start_training(request: Request) -> JSONResponse:
         )
     is_sdxl = request.query_params.get("sdxl", "False") == "True"
     train_type = request.query_params.get("train_mode", "lora")
-    match [train_type, is_sdxl]:
-        case ["lora", False]:
+    is_flux = request.query_params.get("flux", "False") == "True"
+    match [train_type, is_sdxl, is_flux]:
+        case ["lora", False, False]:
             app.state.TRAIN_SCRIPT = "train_network.py"
-        case ["lora", True]:
+        case ["lora", True, False]:
             app.state.TRAIN_SCRIPT = "sdxl_train_network.py"
-        case ["textual_inversion", False]:
+        case ["lora", False, True]:
+            app.state.TRAIN_SCRIPT = "flux_train_network.py"
+        case ["textual_inversion", False, False]:
             app.state.TRAIN_SCRIPT = "train_textual_inversion.py"
-        case ["textual_inversion", True]:
+        case ["textual_inversion", True, False]:
             app.state.TRAIN_SCRIPT = "sdxl_train_textual_inversion.py"
         case _:
             print("Unknown training request: {request.query_params}")
@@ -155,13 +150,12 @@ async def start_training(request: Request) -> JSONResponse:
                     "detail": "Invalid Train Parameters",
                     "sdxl": is_sdxl,
                     "train_type": train_type,
+                    "flux": is_flux,
                 },
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
-    server_config_dict = (
-        json.loads(app.state.CONFIG.read_text()) if app.state.CONFIG else {}
-    )
+    server_config_dict = json.loads(app.state.CONFIG.read_text()) if app.state.CONFIG else {}
     python = sys.executable
     config = Path("runtime_store/config.toml")
     dataset = Path("runtime_store/dataset.toml")
@@ -185,10 +179,7 @@ async def start_training(request: Request) -> JSONResponse:
     ):
         app.state.TUNNEL.kill_service()
         app.state.TUNNEL = None
-    if (
-        "kill_server_on_train_end" in server_config_dict
-        and server_config_dict["kill_server_on_train_end"]
-    ):
+    if "kill_server_on_train_end" in server_config_dict and server_config_dict["kill_server_on_train_end"]:
         app.state.MONITOR_THREAD = Thread(target=monitor_training_thread, daemon=True)
         app.state.MONITOR_THREAD.start()
     return JSONResponse({"detail": "Training Started", "training": True})
@@ -212,15 +203,11 @@ async def stop_training(request: Request) -> JSONResponse:
 
 async def start_resize(request: Request) -> JSONResponse:
     if app.state.TRAINING_THREAD and app.state.TRAINING_THREAD.poll() is None:
-        return JSONResponse(
-            {"detail": "Training Already Running"}, status_code=status.HTTP_409_CONFLICT
-        )
+        return JSONResponse({"detail": "Training Already Running"}, status_code=status.HTTP_409_CONFLICT)
     data = await request.body()
     data: list[str] = json.loads(data)
     python = sys.executable
-    app.state.TRAINING_THREAD = subprocess.Popen(
-        [python, f"{Path('utils/resize_lora.py').resolve()}"] + data
-    )
+    app.state.TRAINING_THREAD = subprocess.Popen([python, f"{Path('utils/resize_lora.py').resolve()}"] + data)
     return JSONResponse({"detail": "Resizing Started"})
 
 
@@ -261,7 +248,9 @@ if config_data.get("remote", False):
     app.state.TUNNEL = create_tunnel(config_data)
     if isinstance(app.state.TUNNEL, CloudflaredTunnel):
         config_path = config_data.get("cloudflared_config_path", None)
-        app.state.TUNNEL.run_tunnel(port=config_data.get("port", 8000), config=Path(config_path) if config_path else None)
+        app.state.TUNNEL.run_tunnel(
+            port=config_data.get("port", 8000), config=Path(config_path) if config_path else None
+        )
     else:
         app.state.TUNNEL.run_tunnel(port=config_data.get("port", 8000))
 uvi_config = uvicorn.Config(

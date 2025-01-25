@@ -24,7 +24,7 @@ def validate(args: dict) -> tuple[bool, bool, list[str], dict, dict]:
         validate_restarts(args_data, dataset_data)
         tag_data = validate_save_tags(dataset_data)
         validate_existing_files(args_data)
-        validate_came(args_data)
+        validate_optimizer(args_data)
     sdxl = validate_sdxl(args_data)
     if not over_pass:
         return False, sdxl, over_errors, args_data, dataset_data, tag_data
@@ -113,7 +113,10 @@ def validate_args(args: dict) -> tuple[bool, list[str], dict]:
         elif file["name"] in output_args:
             output_args[file["name"]] = Path(output_args[file["name"]]).as_posix()
     if "network_module" not in output_args:
-        output_args["network_module"] = "networks.lora"
+        if "guidance_scale" in output_args:
+            output_args["network_module"] = "networks.lora_flux"
+        else:
+            output_args["network_module"] = "networks.lora"
     config = Path("config.json")
     config_dict = json.loads(config.read_text()) if config.is_file() else {}
     if "colab" in config_dict and config_dict["colab"]:
@@ -236,13 +239,20 @@ def validate_save_tags(dataset: dict) -> dict:
     return dict(sorted(tags.items(), key=lambda item: item[1], reverse=True))
 
 
-def validate_came(args: dict) -> None:
+def validate_optimizer(args: dict) -> None:
     config = json.loads(Path("config.json").read_text())
-    if args["optimizer_type"] == "Came":
-        if "colab" in config and config["colab"]:
-            args["optimizer_type"] = "came_pytorch.CAME.CAME"
-        else:
-            args["optimizer_type"] = "LoraEasyCustomOptimizer.came.CAME"
+    match args["optimizer_type"].lower():
+        case "came":
+            if "colab" in config and config["colab"]:
+                args["optimizer_type"] = "came_pytorch.CAME.CAME"
+            else:
+                args["optimizer_type"] = "LoraEasyCustomOptimizer.came.CAME"
+        case "compass":
+            args["optimizer_type"] = "LoraEasyCustomOptimizer.compass.Compass"
+        case "lpfadamw":
+            args["optimizer_type"] = "LoraEasyCustomOptimizer.lpfadamw.LPFAdamW"
+        case "rmsprop":
+            args["optimizer_type"] = "LoraEasyCustomOptimizer.rmsprop.RMSProp"
 
 
 def get_tags_from_file(file: str, tags: dict) -> None:
