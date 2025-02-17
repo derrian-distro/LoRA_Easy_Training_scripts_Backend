@@ -1,9 +1,10 @@
-from pathlib import Path
 import json
+import math
+from datetime import datetime
+from pathlib import Path
 
 from library.train_util import BucketManager
 from PIL import Image
-import math
 
 
 def validate(args: dict) -> tuple[bool, bool, list[str], dict, dict]:
@@ -202,6 +203,9 @@ def validate_warmup_ratio(args: dict, dataset: dict) -> None:
     if "lr_scheduler_type" in args:
         args["lr_scheduler_args"].append(f"warmup_steps={steps // args.get('lr_scheduler_num_cycles', 1)}")
     else:
+        print(
+            f"\033[94m {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\033[0m\033[36m  INFO\033[0m  warmup_steps: {steps}"
+        )
         args["lr_warmup_steps"] = steps
     del args["warmup_ratio"]
 
