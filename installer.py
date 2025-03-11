@@ -78,17 +78,50 @@ def setup_accelerate(platform: str) -> None:
     shutil.move("default_config.yaml", str(path.resolve()))
 
 
+def check_50_series_gpu():
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        print(result.stdout)
+        gpu_name = result.stdout.strip()
+        if "RTX 50" in gpu_name:
+            return True
+        elif "NVIDIA" in gpu_name:
+            return False
+        else:
+            return False
+    except subprocess.CalledProcessError:
+        print("No NVIDIA GPU detected or nvidia-smi not found.")
+        return False
+    except FileNotFoundError:
+        print("nvidia-smi command not found. Ensure NVIDIA drivers are installed.")
+        return False
+
+
 def setup_venv(venv_pip):
-    subprocess.check_call(
-        f"{venv_pip} install -U torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu124",
-        shell=PLATFORM == "linux",
-    )
+    if check_50_series_gpu():
+        subprocess.check_call(
+            f"{venv_pip} install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128",
+            shell=PLATFORM == "linux",
+        )
+        print("50 series GPU doesn't have xformers support!")
+    else:
+
+        subprocess.check_call(
+            f"{venv_pip} install -U torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu124",
+            shell=PLATFORM == "linux",
+        )
+
+        subprocess.check_call(
+            f"{venv_pip} install -U xformers==0.0.29.post1 --index-url https://download.pytorch.org/whl/cu124",
+            shell=PLATFORM == "linux",
+        )
     if PLATFORM == "windows":
         subprocess.check_call("venv\\Scripts\\python.exe ..\\fix_torch.py")
-    subprocess.check_call(
-        f"{venv_pip} install -U xformers==0.0.29.post1 --index-url https://download.pytorch.org/whl/cu124",
-        shell=PLATFORM == "linux",
-    )
     subprocess.check_call(f"{venv_pip} install -U -r requirements.txt", shell=PLATFORM == "linux")
     subprocess.check_call(f"{venv_pip} install -U ../custom_scheduler/.", shell=PLATFORM == "linux")
     subprocess.check_call(f"{venv_pip} install -U -r ../requirements.txt", shell=PLATFORM == "linux")
