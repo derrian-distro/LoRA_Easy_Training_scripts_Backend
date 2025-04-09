@@ -105,7 +105,7 @@ def check_50_series_gpu():
 def setup_venv(venv_pip):
     if check_50_series_gpu():
         subprocess.check_call(
-            f"{venv_pip} install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128",
+            f"{venv_pip} install -U --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128",
             shell=PLATFORM == "linux",
         )
         print("50 series GPU doesn't have xformers support!")
