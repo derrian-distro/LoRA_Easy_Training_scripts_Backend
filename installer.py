@@ -110,14 +110,13 @@ def setup_venv(venv_pip):
         )
         print("50 series GPU doesn't have xformers support!")
     else:
-
         subprocess.check_call(
-            f"{venv_pip} install -U torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu124",
+            f"{venv_pip} install -U torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu124",
             shell=PLATFORM == "linux",
         )
 
         subprocess.check_call(
-            f"{venv_pip} install -U xformers==0.0.29.post1 --index-url https://download.pytorch.org/whl/cu124",
+            f"{venv_pip} install -U xformers==0.0.29.post3 --index-url https://download.pytorch.org/whl/cu124",
             shell=PLATFORM == "linux",
         )
     if PLATFORM == "windows":
