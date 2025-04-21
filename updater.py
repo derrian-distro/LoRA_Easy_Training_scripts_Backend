@@ -1,12 +1,10 @@
-from pathlib import Path
-from subprocess import check_call
 import os
+from pathlib import Path
+
 from installer import PLATFORM, setup_venv
 
 
 def main():
-    check_call("git submodule init", shell=PLATFORM == "linux")
-    check_call("git submodule update", shell=PLATFORM == "linux")
     os.chdir("sd_scripts")
 
     if PLATFORM == "windows":

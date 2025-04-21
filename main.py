@@ -1,23 +1,27 @@
+try:
+    import warnings
+except ImportError:
+    pass
+else:
+    warnings.filterwarnings("ignore", message=".*_register_pytree_node.*")
+
+import json
+import os
+import subprocess
 import sys
+from pathlib import Path
+from threading import Thread
+
+import uvicorn
+from starlette import status
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
-from starlette import status
-import json
-from utils.validation import validate
-from utils.process import process_args, process_dataset_args
-from pathlib import Path
-import subprocess
-from utils.tunnel_service import CloudflaredTunnel, create_tunnel
-import uvicorn
-import os
-from threading import Thread
-
 from transformers import CLIPTokenizer
-
-tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
-
+from utils.process import process_args, process_dataset_args
+from utils.tunnel_service import CloudflaredTunnel, create_tunnel
+from utils.validation import validate
 
 if len(sys.argv) > 1:
     os.chdir(sys.argv[1])
@@ -108,12 +112,11 @@ async def is_training(_: Request) -> JSONResponse:
 
 
 async def tokenize_text(request: Request) -> JSONResponse:
+    if not app.state.TOKENIZER:
+        app.state.TOKENIZER = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
     text = request.query_params.get("text")
-    tokens = tokenizer.tokenize(text)
-    token_ids = tokenizer.convert_tokens_to_ids(tokens)
-    # print("Original string:", text)
-    # print("Tokenized string:", tokens)
-    # print("Token IDs:", token_ids)
+    tokens = app.state.TOKENIZER.tokenize(text)
+    token_ids = app.state.TOKENIZER.convert_tokens_to_ids(tokens)
     return JSONResponse({"tokens": tokens, "token_ids": token_ids, "length": len(tokens)})
 
 
@@ -220,6 +223,11 @@ def monitor_training_thread():
     server.force_exit = True
 
 
+def load_tokenizer(_: Request) -> JSONResponse:
+    app.state.TOKENIZER = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
+    return JSONResponse({"success": True})
+
+
 routes = [
     Route("/stop_server", stop_server, methods=["GET"]),
     Route("/start_tunnel_service", start_tunnel_service, methods=["GET"]),
@@ -231,8 +239,11 @@ routes = [
     Route("/tokenize", tokenize_text, methods=["GET"]),
     Route("/stop_training", stop_training, methods=["GET"]),
     Route("/resize", start_resize, methods=["POST"]),
+    Route("/load_tokenizer", load_tokenizer, methods=["GET"]),
 ]
 
+
+print("Starting server...")
 app = Starlette(debug=True, routes=routes)
 app.state.TRAIN_SCRIPT = None
 app.state.TRAINING_THREAD = None
@@ -261,6 +272,7 @@ uvi_config = uvicorn.Config(
     port=config_data.get("port", 8000),
 )
 server = uvicorn.Server(config=uvi_config)
+print("Server started")
 
 if __name__ == "__main__":
     server.run()

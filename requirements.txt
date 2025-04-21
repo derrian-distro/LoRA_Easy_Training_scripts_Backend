@@ -7,6 +7,5 @@ pyngrok
 pycloudflared
 scipy
 came-pytorch
-lycoris-lora==3.0.1.dev10
 pytorch_optimizer==3.1.2
 wheel

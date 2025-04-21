@@ -2,5 +2,6 @@
 	path = sd_scripts
 	url = https://github.com/kohya-ss/sd-scripts
 [submodule "LyCORIS"]
-	path = LyCORIS
-	url = https://github.com/KohakuBlueleaf/LyCORIS
+	path = lycoris
+	url = https://github.com/67372a/LyCORIS
+
