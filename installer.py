@@ -78,7 +78,8 @@ def setup_accelerate(platform: str) -> None:
     shutil.move("default_config.yaml", str(path.resolve()))
 
 
-def check_50_series_gpu():
+# deprecated
+def _check_50_series_gpu():
     try:
         result = subprocess.run(
             ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
@@ -103,28 +104,20 @@ def check_50_series_gpu():
 
 
 def setup_venv(venv_pip):
-    if check_50_series_gpu():
-        subprocess.check_call(
-            f"{venv_pip} install -U --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128",
-            shell=PLATFORM == "linux",
-        )
-        print("50 series GPU doesn't have xformers support!")
-    else:
-        subprocess.check_call(
-            f"{venv_pip} install -U torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu124",
-            shell=PLATFORM == "linux",
-        )
+    subprocess.check_call(
+        f"{venv_pip} install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128",
+        shell=PLATFORM == "linux",
+    )
 
-        subprocess.check_call(
-            f"{venv_pip} install -U xformers==0.0.29.post3 --index-url https://download.pytorch.org/whl/cu124",
-            shell=PLATFORM == "linux",
-        )
+    subprocess.check_call(
+        f"{venv_pip} install -U xformers==0.0.30 --index-url https://download.pytorch.org/whl/cu128",
+        shell=PLATFORM == "linux",
+    )
     if PLATFORM == "windows":
         subprocess.check_call("venv\\Scripts\\python.exe ..\\fix_torch.py")
     subprocess.check_call(f"{venv_pip} install -U -r requirements.txt", shell=PLATFORM == "linux")
     subprocess.check_call(f"{venv_pip} install -U ../custom_scheduler/.", shell=PLATFORM == "linux")
     subprocess.check_call(f"{venv_pip} install -U -r ../requirements.txt", shell=PLATFORM == "linux")
-    subprocess.check_call(f"{venv_pip} install -U ../lycoris/.", shell=PLATFORM == "linux")
 
 
 # colab only
